@@ -39,46 +39,24 @@ struct GlassPanel<Content: View>: View {
     }
 }
 
-/// Layered, light-filled backdrop. A near-white base with a few soft colour
-/// "blooms" gives the airy, premium depth the brand leans on.
 struct AppBackground: View {
     var body: some View {
-        ZStack {
-            Color(.systemBackground)
-
-            LinearGradient(
-                colors: [
-                    Color.white,
-                    Theme.brandBright.opacity(0.10),
-                    Theme.accentBlue.opacity(0.06)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            // Top-trailing aqua bloom
-            RadialGradient(
-                colors: [Theme.brandBright.opacity(0.30), .clear],
-                center: .init(x: 0.92, y: 0.05),
-                startRadius: 4,
-                endRadius: 360
-            )
-
-            // Lower-leading mint bloom
-            RadialGradient(
-                colors: [Color.mint.opacity(0.20), .clear],
-                center: .init(x: 0.05, y: 0.85),
-                startRadius: 4,
-                endRadius: 420
-            )
-        }
+        LinearGradient(
+            colors: [
+                Color(.systemBackground),
+                Color(.secondarySystemBackground),
+                Color(.systemGray6)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
         .ignoresSafeArea()
     }
 }
 
 struct GlassIconButton: View {
     var systemName: String
-    var tint: Color = .teal
+    var tint: Color = Theme.brand
     var size: CGFloat = 48
     var action: () -> Void
 
@@ -133,8 +111,6 @@ struct PrimaryGlassButton<Label: View>: View {
     }
 }
 
-/// The signature call-to-action: a glossy aqua capsule with an inner light
-/// highlight and an outer brand glow. Press gives a soft spring + dim.
 struct HeroSendButton<Label: View>: View {
     var isBusy: Bool
     var action: () -> Void
@@ -161,11 +137,11 @@ struct HeroSendButton<Label: View>: View {
                             .fill(Theme.glossOverlay)
                             .blendMode(.softLight)
                         Capsule()
-                            .strokeBorder(.white.opacity(0.45), lineWidth: 1)
+                            .strokeBorder(.white.opacity(0.16), lineWidth: 1)
                     }
                 }
-                .shadow(color: Theme.brand.opacity(0.42), radius: 18, x: 0, y: 10)
-                .shadow(color: Theme.brandBright.opacity(0.32), radius: 5, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.16), radius: 14, x: 0, y: 8)
+                .shadow(color: .black.opacity(0.08), radius: 3, x: 0, y: 1)
                 .overlay {
                     if isBusy {
                         Capsule().fill(.black.opacity(0.06))

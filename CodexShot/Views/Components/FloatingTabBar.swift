@@ -2,15 +2,17 @@ import SwiftUI
 
 struct FloatingTabBar: View {
     @Binding var selection: AppTab
+    var settingsNeedsAttention: Bool
     @Namespace private var indicator
 
     var body: some View {
-        GlassPanel(tint: .white.opacity(0.24), interactive: true, cornerRadius: 34, padding: 6) {
+        GlassPanel(tint: .white.opacity(0.12), interactive: true, cornerRadius: 34, padding: 6) {
             HStack(spacing: 4) {
                 ForEach(AppTab.allCases) { tab in
                     FloatingTabButton(
                         tab: tab,
                         isSelected: selection == tab,
+                        showsBadge: tab == .settings && settingsNeedsAttention,
                         namespace: indicator,
                         action: {
                             withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
@@ -29,15 +31,25 @@ struct FloatingTabBar: View {
 private struct FloatingTabButton: View {
     var tab: AppTab
     var isSelected: Bool
+    var showsBadge: Bool
     var namespace: Namespace.ID
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Image(systemName: tab.symbolName)
-                    .font(.system(size: 17, weight: .semibold))
-                    .symbolEffect(.bounce, value: isSelected)
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: tab.symbolName)
+                        .font(.system(size: 17, weight: .semibold))
+                        .symbolEffect(.bounce, value: isSelected)
+
+                    if showsBadge {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .offset(x: 5, y: -3)
+                    }
+                }
                 Text(tab.title)
                     .font(.caption2.weight(isSelected ? .bold : .medium))
             }
@@ -47,14 +59,14 @@ private struct FloatingTabButton: View {
             .background {
                 if isSelected {
                     Capsule()
-                        .fill(Theme.brand.opacity(0.16))
-                        .overlay { Capsule().strokeBorder(Theme.brand.opacity(0.22), lineWidth: 1) }
+                        .fill(Theme.brand.opacity(0.08))
+                        .overlay { Capsule().strokeBorder(Theme.brand.opacity(0.12), lineWidth: 1) }
                         .matchedGeometryEffect(id: "tabSelection", in: namespace)
                 }
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(tab.title)
+        .accessibilityLabel(showsBadge ? "\(tab.title), needs attention" : tab.title)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

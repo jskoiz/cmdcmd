@@ -6,16 +6,15 @@ struct CaptureView: View {
     @Bindable var store: CaptureStore
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var imageData: Data?
-    @State private var note = ""
     @State private var isSending = false
     @State private var statusText = ""
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            glassStack
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+        GeometryReader { proxy in
+            glassStack(height: max(proxy.size.height - 32, 0))
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, 14)
         }
         .background {
             AppBackground()
@@ -30,138 +29,110 @@ struct CaptureView: View {
     }
 
     @ViewBuilder
-    private var glassStack: some View {
+    private func glassStack(height: CGFloat) -> some View {
         if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 20) {
-                contentStack
+            GlassEffectContainer(spacing: 16) {
+                contentStack(height: height)
             }
         } else {
-            contentStack
+            contentStack(height: height)
         }
     }
 
-    private var contentStack: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private func contentStack(height: CGFloat) -> some View {
+        let panelHeight = min(max(height - 280, 360), 520)
+
+        return VStack(alignment: .leading, spacing: 16) {
             header
-            statusCapsule
-            screenshotPanel
+            screenshotPanel(height: panelHeight)
             sendButton
-            contextComposer
 
             if !statusText.isEmpty {
                 Label(statusText, systemImage: "sparkle")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Theme.brandDeep)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 2)
+                    .padding(.top, -2)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .frame(maxWidth: .infinity)
+        .frame(height: height, alignment: .top)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: statusText)
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("CodexShot")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                Text("Capture · annotate · relay")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .center) {
+            HStack(spacing: 6) {
+                Image(systemName: "command")
+                Text("+")
+                Image(systemName: "command")
             }
+            .font(.system(size: 29, weight: .bold, design: .rounded))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .accessibilityLabel("cmd plus cmd")
 
             Spacer()
-
-            GlassIconButton(systemName: "arrow.triangle.2.circlepath", tint: Theme.brand, size: 42) {
-                store.reload()
-            }
-            .accessibilityLabel("Reload")
-        }
-        .padding(.top, 2)
-    }
-
-    private var statusCapsule: some View {
-        GlassPanel(
-            tint: store.hasEndpoint ? Theme.brand.opacity(0.10) : Theme.warning.opacity(0.14),
-            cornerRadius: 24,
-            padding: 11
-        ) {
-            HStack(spacing: 11) {
-                ZStack {
-                    Circle()
-                        .fill((store.hasEndpoint ? Theme.brand : Theme.warning).opacity(0.16))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: store.hasEndpoint ? "point.3.connected.trianglepath.dotted" : "link.badge.plus")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(store.hasEndpoint ? Theme.brand : Theme.warning)
-                }
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(store.hasEndpoint ? "Relay ready" : "Relay needed")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(store.hasEndpoint ? Theme.brandDeep : .primary)
-                    Text(store.hasEndpoint ? endpointDisplay : "Add a relay endpoint in Settings")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-
-                Spacer()
-
-                StatusDot(color: store.hasEndpoint ? .green : Theme.warning)
-            }
         }
     }
 
-    private var screenshotPanel: some View {
-        GlassPanel(tint: Theme.brandBright.opacity(0.12), interactive: true, cornerRadius: Theme.Radius.card, padding: 0) {
+    private func screenshotPanel(height: CGFloat) -> some View {
+        GlassPanel(tint: .white.opacity(0.12), interactive: true, cornerRadius: 28, padding: 0) {
             VStack(spacing: 0) {
-                HStack {
-                    Label("Screenshot", systemImage: "photo.on.rectangle.angled")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-
+                HStack(spacing: 8) {
                     Spacer()
 
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
                         Label(imageData == nil ? "Choose" : "Replace", systemImage: imageData == nil ? "plus" : "arrow.triangle.2.circlepath")
                             .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 13)
+                            .padding(.horizontal, 12)
                             .padding(.vertical, 7)
-                            .foregroundStyle(Theme.brandDeep)
-                            .background(Theme.brand.opacity(0.14), in: Capsule())
-                            .overlay { Capsule().strokeBorder(Theme.brand.opacity(0.25), lineWidth: 1) }
+                            .foregroundStyle(.primary)
+                            .background(Theme.brand.opacity(0.06), in: Capsule())
+                            .overlay { Capsule().strokeBorder(Theme.brand.opacity(0.12), lineWidth: 1) }
                     }
                     .buttonStyle(.plain)
+
+                    compactReloadButton
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 18)
                 .padding(.top, 14)
-                .padding(.bottom, 2)
+                .padding(.bottom, 10)
 
-                previewWell
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 8)
-
-                chipRow
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 14)
+                previewWell(height: max(height - 71, 0))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
             }
         }
+        .frame(height: height)
     }
 
-    private var previewWell: some View {
+    private var compactReloadButton: some View {
+        Button {
+            store.reload()
+        } label: {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 31, height: 31)
+                .background(Theme.brand.opacity(0.06), in: Circle())
+                .overlay { Circle().strokeBorder(Theme.brand.opacity(0.12), lineWidth: 1) }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Reload")
+    }
+
+    private func previewWell(height: CGFloat) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.65),
-                            Theme.brandBright.opacity(0.20),
-                            Color.mint.opacity(0.22)
+                            Color(.secondarySystemBackground).opacity(0.82),
+                            Color(.systemBackground).opacity(0.72),
+                            Color(.systemGray5).opacity(0.62)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -169,12 +140,12 @@ struct CaptureView: View {
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .strokeBorder(.white.opacity(0.65), lineWidth: 1)
+                        .strokeBorder(Theme.brand.opacity(0.08), lineWidth: 1)
                 }
 
             previewImage
         }
-        .frame(height: 272)
+        .frame(height: height)
     }
 
     @ViewBuilder
@@ -187,27 +158,11 @@ struct CaptureView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(.white.opacity(0.55), lineWidth: 1)
+                        .strokeBorder(.white.opacity(0.42), lineWidth: 1)
                 }
-                .shadow(color: .black.opacity(0.22), radius: 20, x: 0, y: 14)
+                .shadow(color: .black.opacity(0.16), radius: 18, x: 0, y: 12)
         } else {
-            DeviceMockup()
-        }
-    }
-
-    private var chipRow: some View {
-        HStack(spacing: 8) {
-            CaptureChip(symbol: "viewfinder", title: "OCR ready", tint: Theme.brand)
-            CaptureChip(
-                symbol: "text.bubble",
-                title: store.settings.threadHint.isEmpty ? "Thread hint" : "Thread set",
-                tint: Theme.accentBlue
-            )
-            CaptureChip(
-                symbol: store.hasEndpoint ? "lock.shield" : "link.badge.plus",
-                title: store.hasEndpoint ? "Private relay" : "Endpoint",
-                tint: store.hasEndpoint ? Theme.brandBright : Theme.warning
-            )
+            ImagePlaceholder()
         }
     }
 
@@ -224,39 +179,11 @@ struct CaptureView: View {
                     Image(systemName: "paperplane.fill")
                         .font(.system(size: 18, weight: .semibold))
                 }
-                Text(isSending ? "Sending…" : "Send to Codex")
+                Text(isSending ? "Sending…" : "⌘+⌘")
                     .font(.headline.weight(.semibold))
             }
         }
         .disabled(isSending)
-    }
-
-    private var contextComposer: some View {
-        GlassPanel(tint: .white.opacity(0.18), interactive: true, cornerRadius: 26, padding: 10) {
-            HStack(alignment: .center, spacing: 10) {
-                TextField("What should Codex focus on?", text: $note, axis: .vertical)
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1...4)
-                    .textFieldStyle(.plain)
-                    .padding(.leading, 6)
-
-                GlassIconButton(systemName: "wand.and.sparkles", tint: Theme.brand, size: 42) {
-                    if note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        note = store.settings.defaultContext
-                    }
-                }
-                .accessibilityLabel("Use default context")
-            }
-            .frame(minHeight: 42)
-        }
-    }
-
-    private var endpointDisplay: String {
-        if let host = URL(string: store.settings.endpoint)?.host(), !host.isEmpty {
-            return "\(host) · local"
-        }
-        return store.settings.endpoint
     }
 
     private func sendSelectedImage() async {
@@ -269,56 +196,11 @@ struct CaptureView: View {
         let record = await store.submit(
             imageData: imageData,
             filename: "screenshot.png",
-            note: note,
+            note: "",
             source: .mainApp
         )
         statusText = record.statusMessage
         isSending = false
-    }
-}
-
-private struct StatusDot: View {
-    var color: Color
-    @State private var pulse = false
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(color.opacity(0.25))
-                .frame(width: 18, height: 18)
-                .scaleEffect(pulse ? 1.0 : 0.6)
-                .opacity(pulse ? 0 : 0.8)
-            Circle()
-                .fill(color)
-                .frame(width: 9, height: 9)
-                .shadow(color: color.opacity(0.6), radius: 5)
-        }
-        .onAppear {
-            withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) {
-                pulse = true
-            }
-        }
-    }
-}
-
-private struct CaptureChip: View {
-    var symbol: String
-    var title: String
-    var tint: Color
-
-    var body: some View {
-        Label(title, systemImage: symbol)
-            .font(.caption2.weight(.semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.72)
-            .foregroundStyle(tint)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 7)
-            .frame(maxWidth: .infinity)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay {
-                Capsule().strokeBorder(tint.opacity(0.30), lineWidth: 1)
-            }
     }
 }
 

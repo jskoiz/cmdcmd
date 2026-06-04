@@ -1,23 +1,22 @@
 import SwiftUI
 
-/// Central design tokens for CodexShot. Keeps the brand palette, gradients and
-/// spacing consistent across every screen so the app reads as a single, polished surface.
+/// Central design tokens for a restrained, professional interface.
 enum Theme {
-    // MARK: Brand palette
+    // MARK: Neutral palette
 
-    static let brand = Color(red: 0.12, green: 0.74, blue: 0.74)        // primary teal
-    static let brandDeep = Color(red: 0.05, green: 0.52, blue: 0.62)    // deep teal/blue
-    static let brandBright = Color(red: 0.36, green: 0.86, blue: 0.86)  // bright aqua
-    static let accentBlue = Color(red: 0.20, green: 0.55, blue: 0.95)
-    static let warning = Color(red: 0.98, green: 0.62, blue: 0.20)
+    static let brand = Color(red: 0.10, green: 0.10, blue: 0.10)
+    static let brandDeep = Color(red: 0.02, green: 0.02, blue: 0.02)
+    static let brandBright = Color(red: 0.88, green: 0.89, blue: 0.91)
+    static let accentBlue = Color(red: 0.36, green: 0.36, blue: 0.38)
+    static let warning = Color(red: 0.42, green: 0.42, blue: 0.44)
 
-    // MARK: Hero send-button gradient (glossy aqua)
+    // MARK: Primary action gradient
 
     static let sendGradient = LinearGradient(
         colors: [
-            Color(red: 0.42, green: 0.88, blue: 0.89),
-            Color(red: 0.16, green: 0.76, blue: 0.80),
-            Color(red: 0.07, green: 0.60, blue: 0.70)
+            Color(red: 0.24, green: 0.24, blue: 0.25),
+            Color(red: 0.08, green: 0.08, blue: 0.09),
+            Color.black
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
@@ -26,8 +25,8 @@ enum Theme {
     /// Soft inner gloss laid over a filled control to fake a light source.
     static let glossOverlay = LinearGradient(
         colors: [
-            Color.white.opacity(0.55),
-            Color.white.opacity(0.10),
+            Color.white.opacity(0.22),
+            Color.white.opacity(0.06),
             Color.clear
         ],
         startPoint: .top,

@@ -42,9 +42,9 @@ struct ContentView: View {
                     Color.clear.frame(height: 88)
                 }
 
-            FloatingTabBar(selection: $selectedTab)
+            FloatingTabBar(selection: $selectedTab, settingsNeedsAttention: !store.hasEndpoint)
         }
-        .tint(.teal)
+        .tint(Theme.brand)
     }
 
     @ViewBuilder
