@@ -16,6 +16,7 @@
 		110000000000000000000106 /* RelayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000006 /* RelayClient.swift */; };
 		110000000000000000000107 /* CapturePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000007 /* CapturePipeline.swift */; };
 		110000000000000000000108 /* CaptureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000008 /* CaptureStore.swift */; };
+		110000000000000000000116 /* LatestScreenshotProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000017 /* LatestScreenshotProvider.swift */; };
 		110000000000000000000109 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000009 /* Formatters.swift */; };
 		11000000000000000000010A /* StatusPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000A /* StatusPresentation.swift */; };
 		110000000000000000000114 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* Theme.swift */; };
@@ -73,6 +74,7 @@
 		110000000000000000000006 /* RelayClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/RelayClient.swift; sourceTree = "<group>"; };
 		110000000000000000000007 /* CapturePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CapturePipeline.swift; sourceTree = "<group>"; };
 		110000000000000000000008 /* CaptureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CaptureStore.swift; sourceTree = "<group>"; };
+		110000000000000000000017 /* LatestScreenshotProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/LatestScreenshotProvider.swift; sourceTree = "<group>"; };
 		110000000000000000000009 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/Formatters.swift; sourceTree = "<group>"; };
 		11000000000000000000000A /* StatusPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/StatusPresentation.swift; sourceTree = "<group>"; };
 		110000000000000000000014 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/Theme.swift; sourceTree = "<group>"; };
@@ -133,6 +135,7 @@
 				110000000000000000000006 /* RelayClient.swift */,
 				110000000000000000000007 /* CapturePipeline.swift */,
 				110000000000000000000008 /* CaptureStore.swift */,
+				110000000000000000000017 /* LatestScreenshotProvider.swift */,
 				110000000000000000000009 /* Formatters.swift */,
 				11000000000000000000000A /* StatusPresentation.swift */,
 				11000000000000000000000B /* GlassPanel.swift */,
@@ -279,6 +282,7 @@
 				110000000000000000000106 /* RelayClient.swift in Sources */,
 				110000000000000000000107 /* CapturePipeline.swift in Sources */,
 				110000000000000000000108 /* CaptureStore.swift in Sources */,
+				110000000000000000000116 /* LatestScreenshotProvider.swift in Sources */,
 				110000000000000000000109 /* Formatters.swift in Sources */,
 				11000000000000000000010A /* StatusPresentation.swift in Sources */,
 				110000000000000000000114 /* Theme.swift in Sources */,

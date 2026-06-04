@@ -7,122 +7,195 @@ struct ShareCaptureView: View {
     var cancel: () -> Void
 
     @State private var input = SharedCaptureInput()
-    @State private var note = ""
-    @State private var isLoading = true
-    @State private var isSending = false
-    @State private var message = ""
+    @State private var phase: ShareSendPhase = .loading
+    @State private var didStart = false
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    previewPanel
-                    contextPanel
-                    sendPanel
-                }
-                .padding(18)
+            VStack(spacing: 22) {
+                preview
+                statusPanel
+                actionPanel
             }
+            .padding(22)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
-                LinearGradient(
-                    colors: [
-                        Color(.systemBackground),
-                        Color.blue.opacity(0.10),
-                        Color.teal.opacity(0.08)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                AppBackground()
             }
-            .navigationTitle("Send to Codex")
+            .navigationTitle("CodexShot")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: cancel)
+                        .disabled(phase.isWorking)
                 }
             }
             .task {
-                input = await loadInput()
-                if !input.sourceText.isEmpty {
-                    note = input.sourceText
-                }
-                isLoading = false
+                await loadAndSendOnce()
             }
         }
     }
 
-    private var previewPanel: some View {
-        GlassPanel(tint: .teal.opacity(0.16)) {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Screenshot", systemImage: "photo")
-                    .font(.headline)
-
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 180)
-                } else if let data = input.imageData, let image = UIImage(data: data) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                } else {
-                    ContentUnavailableView("No image found", systemImage: "photo.badge.exclamationmark")
-                        .frame(minHeight: 180)
+    @ViewBuilder
+    private var preview: some View {
+        if let data = input.imageData, let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 210, maxHeight: 300)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(.white.opacity(0.42), lineWidth: 1)
                 }
-            }
+                .shadow(color: .black.opacity(0.16), radius: 18, x: 0, y: 12)
+        } else {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+                .frame(width: 210, height: 260)
+                .overlay {
+                    Image(systemName: "photo")
+                        .font(.system(size: 42, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
         }
     }
 
-    private var contextPanel: some View {
-        GlassPanel(tint: .indigo.opacity(0.14)) {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Context", systemImage: "text.bubble")
-                    .font(.headline)
+    private var statusPanel: some View {
+        GlassPanel(tint: .black.opacity(0.04), cornerRadius: 22, padding: 18) {
+            VStack(spacing: 12) {
+                phaseSymbol
+                Text(phase.title)
+                    .font(.headline.weight(.semibold))
+                    .multilineTextAlignment(.center)
 
-                TextField("What should Codex focus on?", text: $note, axis: .vertical)
-                    .lineLimit(3...7)
-                    .textFieldStyle(.roundedBorder)
-            }
-        }
-    }
-
-    private var sendPanel: some View {
-        GlassPanel(tint: .green.opacity(0.14), interactive: true) {
-            VStack(alignment: .leading, spacing: 12) {
-                PrimaryGlassButton {
-                    Task { await send() }
-                } label: {
-                    Label(isSending ? "Sending" : "Send", systemImage: "paperplane.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .disabled(input.imageData == nil || isSending)
-
-                if !message.isEmpty {
+                if let message = phase.message {
                     Text(message)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.82)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var phaseSymbol: some View {
+        switch phase {
+        case .loading, .sending:
+            ProgressView()
+                .controlSize(.large)
+        case .sent:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 38, weight: .semibold))
+                .foregroundStyle(.green)
+        case .failed:
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 38, weight: .semibold))
+                .foregroundStyle(.orange)
+        }
+    }
+
+    @ViewBuilder
+    private var actionPanel: some View {
+        if phase.canRetry {
+            HStack(spacing: 12) {
+                SecondaryGlassButton(action: finish) {
+                    Text("Close")
+                        .frame(maxWidth: .infinity)
+                }
+
+                PrimaryGlassButton {
+                    Task { await send(input) }
+                } label: {
+                    Text("Try Again")
+                        .frame(maxWidth: .infinity)
                 }
             }
         }
     }
 
-    private func send() async {
-        guard let data = input.imageData else { return }
-        isSending = true
-        message = "Preparing capture"
+    private func loadAndSendOnce() async {
+        guard !didStart else {
+            return
+        }
+
+        didStart = true
+        phase = .loading
+        input = await loadInput()
+        await send(input)
+    }
+
+    private func send(_ input: SharedCaptureInput) async {
+        guard let data = input.imageData else {
+            phase = .failed("No image was shared.")
+            return
+        }
+
+        phase = .sending
         let record = await CapturePipeline.submit(
             imageData: data,
             filename: input.filename.isEmpty ? "shared-screenshot.png" : input.filename,
-            note: note,
+            note: input.sourceText,
             source: .shareExtension,
             sourceDetail: "Share Sheet"
         )
-        message = record.statusMessage
-        isSending = false
 
-        if record.status == .sent || record.status == .needsEndpoint {
+        if record.status == .sent {
+            phase = .sent(record.statusMessage)
+            try? await Task.sleep(nanoseconds: 650_000_000)
             finish()
+        } else {
+            phase = .failed(record.statusMessage)
         }
     }
 }
 
+private enum ShareSendPhase: Equatable {
+    case loading
+    case sending
+    case sent(String)
+    case failed(String)
+
+    var title: String {
+        switch self {
+        case .loading:
+            "Reading screenshot"
+        case .sending:
+            "Sending to Codex"
+        case .sent:
+            "Sent"
+        case .failed:
+            "Could not send"
+        }
+    }
+
+    var message: String? {
+        switch self {
+        case .loading:
+            "Preparing the shared image."
+        case .sending:
+            "Waiting for the relay."
+        case .sent(let message), .failed(let message):
+            message
+        }
+    }
+
+    var isWorking: Bool {
+        switch self {
+        case .loading, .sending:
+            true
+        case .sent, .failed:
+            false
+        }
+    }
+
+    var canRetry: Bool {
+        if case .failed = self {
+            return true
+        }
+        return false
+    }
+}
