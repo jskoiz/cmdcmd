@@ -5,6 +5,10 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { buildTurnInput, sandboxModeToPolicy } from "../src/app-server-client.js";
 import { loadConfig } from "../src/config.js";
+import {
+  buildHelperArgs,
+  DesktopAppshotClient
+} from "../src/desktop-appshot-client.js";
 import { createDeliveryStatusStore } from "../src/delivery-status.js";
 import { buildCodexPrompt } from "../src/prompt.js";
 import { deliverPayload } from "../src/relay.js";
@@ -150,6 +154,120 @@ test("sandboxModeToPolicy maps relay sandbox settings to app-server policy", () 
   assert.deepEqual(sandboxModeToPolicy("danger-full-access"), {
     type: "dangerFullAccess"
   });
+});
+
+test("loadConfig requires the Desktop Appshot helper for Appshot delivery", () => {
+  assert.throws(
+    () =>
+      loadConfig(
+        {
+          CODEXSHOT_RELAY_TOKEN: "secret",
+          CODEXSHOT_DELIVERY_MODE: "desktop-appshot"
+        },
+        { cwd: process.cwd() }
+      ),
+    /CODEXSHOT_APPSHOT_HELPER is required/
+  );
+});
+
+test("buildHelperArgs targets the viewer for phone screenshot Appshots", () => {
+  assert.deepEqual(
+    buildHelperArgs({
+      hotkey: "DoubleCommand",
+      targetBundle: undefined,
+      openImageInViewer: true,
+      viewerBundle: "com.apple.Preview",
+      noPrime: false,
+      codexDelay: undefined,
+      restoreDelay: undefined,
+      holdDelay: undefined
+    }),
+    [
+      "--hotkey",
+      "DoubleCommand",
+      "--target-bundle",
+      "com.apple.Preview"
+    ]
+  );
+});
+
+test("DesktopAppshotClient invokes the configured helper", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "codexshot-appshot-"));
+  const helperPath = path.join(tempDir, "helper.mjs");
+  const argsPath = path.join(tempDir, "helper-args.json");
+  await fs.writeFile(
+    helperPath,
+    `#!/usr/bin/env node
+import fs from "node:fs";
+fs.writeFileSync(${JSON.stringify(argsPath)}, JSON.stringify(process.argv.slice(2)));
+`,
+    { mode: 0o700 }
+  );
+
+  const config = loadConfig(
+    {
+      CODEXSHOT_RELAY_TOKEN: "secret",
+      CODEXSHOT_INBOX_DIR: tempDir,
+      CODEXSHOT_DELIVERY_MODE: "desktop-appshot",
+      CODEXSHOT_APPSHOT_HELPER: helperPath,
+      CODEXSHOT_APPSHOT_OPEN_VIEWER: "false",
+      CODEXSHOT_APPSHOT_TARGET_BUNDLE: "com.example.Viewer",
+      CODEXSHOT_APPSHOT_HOTKEY: "DoubleShift",
+      CODEXSHOT_APPSHOT_NO_PRIME: "true",
+      CODEXSHOT_APPSHOT_CODEX_DELAY: "0.1",
+      CODEXSHOT_APPSHOT_RESTORE_DELAY: "0.2",
+      CODEXSHOT_APPSHOT_HOLD_DELAY: "0.3"
+    },
+    { cwd: tempDir }
+  );
+  const client = new DesktopAppshotClient(config, {
+    logger: { info() {}, error() {} }
+  });
+
+  const result = await client.deliver(samplePayload, {
+    imagePath: path.join(tempDir, "image.png"),
+    metadataPath: path.join(tempDir, "metadata.json")
+  });
+
+  assert.equal(result.status, "delivered");
+  assert.equal(result.deliveryLane, "desktop-appshot");
+  assert.equal(result.message, "Triggered Desktop Appshot");
+  assert.deepEqual(JSON.parse(await fs.readFile(argsPath, "utf8")), [
+    "--hotkey",
+    "DoubleShift",
+    "--target-bundle",
+    "com.example.Viewer",
+    "--no-prime",
+    "--codex-delay",
+    "0.1",
+    "--restore-delay",
+    "0.2",
+    "--hold-delay",
+    "0.3"
+  ]);
+});
+
+test("delivery status reports Desktop Appshot progress honestly", () => {
+  const store = createDeliveryStatusStore();
+  const capture = {
+    captureId: "55555555-5555-4555-8555-555555555555",
+    threadHint: ""
+  };
+  const stored = {
+    imagePath: "/tmp/codexshot/image.png",
+    metadataPath: "/tmp/codexshot/metadata.json"
+  };
+
+  const accepted = store.accept(capture, stored, "req_test", "desktop-appshot");
+  assert.equal(accepted.message, "Queued for Desktop Appshot");
+
+  const delivering = store.deliver(capture.captureId, "desktop-appshot");
+  assert.equal(delivering.message, "Triggering Desktop Appshot");
+
+  const delivered = store.complete(capture.captureId, {
+    deliveryLane: "desktop-appshot"
+  });
+  assert.equal(delivered.message, "Triggered Desktop Appshot");
 });
 
 test("createServer requires bearer auth for capture posts", async () => {

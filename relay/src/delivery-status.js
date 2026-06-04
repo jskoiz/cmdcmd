@@ -5,10 +5,11 @@ export function createDeliveryStatusStore(options = {}) {
   const statuses = new Map();
 
   return {
-    accept(capture, stored, requestId) {
+    accept(capture, stored, requestId, deliveryMode = "app-server") {
       return write(capture.captureId, {
         status: "accepted",
-        message: queuedMessage(capture),
+        message: queuedMessage(capture, deliveryMode),
+        deliveryMode,
         requestId,
         imagePath: stored.imagePath,
         metadataPath: stored.metadataPath,
@@ -16,17 +17,18 @@ export function createDeliveryStatusStore(options = {}) {
       });
     },
 
-    deliver(captureId) {
+    deliver(captureId, deliveryMode = "app-server") {
       return write(captureId, {
         status: "delivering",
-        message: "Sending to Codex thread"
+        message: deliveringMessage(deliveryMode),
+        deliveryMode
       });
     },
 
     complete(captureId, delivery) {
       return write(captureId, {
         status: "delivered",
-        message: "Delivered to Codex thread",
+        message: delivery.message ?? deliveredMessage(delivery.deliveryLane),
         threadId: delivery.threadId ?? null,
         turnId: delivery.turnId ?? null,
         turnStatus: delivery.turnStatus ?? null,
@@ -35,9 +37,14 @@ export function createDeliveryStatusStore(options = {}) {
     },
 
     fail(captureId, error) {
+      const previous = statuses.get(captureId);
+      const prefix =
+        previous?.deliveryMode === "desktop-appshot"
+          ? "Desktop Appshot failed"
+          : "Codex delivery failed";
       return write(captureId, {
         status: "failed",
-        message: `Codex delivery failed: ${truncate(error.message)}`,
+        message: `${prefix}: ${truncate(error.message)}`,
         error: truncate(error.message)
       });
     },
@@ -65,8 +72,23 @@ export function createDeliveryStatusStore(options = {}) {
   }
 }
 
-function queuedMessage(capture) {
+function queuedMessage(capture, deliveryMode) {
+  if (deliveryMode === "desktop-appshot") {
+    return "Queued for Desktop Appshot";
+  }
   return capture.threadHint ? "Queued to Codex thread" : "Queued in Codex";
+}
+
+function deliveringMessage(deliveryMode) {
+  return deliveryMode === "desktop-appshot"
+    ? "Triggering Desktop Appshot"
+    : "Sending to Codex thread";
+}
+
+function deliveredMessage(deliveryLane) {
+  return deliveryLane === "desktop-appshot"
+    ? "Triggered Desktop Appshot"
+    : "Delivered to Codex thread";
 }
 
 function nowIso(now) {

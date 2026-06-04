@@ -28,15 +28,17 @@ The relay endpoint is intentionally configurable because Codex does not expose a
 ## Private Relay
 
 The repo includes a private relay implementation in `relay/`. It receives the
-existing app payload, saves the screenshot and metadata to a local inbox, then
-uses the supported `codex app-server` protocol to start or resume a Codex thread
-with the note, OCR text, and a native local image attachment.
+existing app payload and saves the screenshot and metadata to a local inbox. The
+relay can then deliver through one of two explicit lanes:
 
-The relay does not spoof the Codex Desktop Appshots hotkey path. Appshots are a
-Desktop renderer feature; this relay uses the supported app-server turn lane and
-logs the resulting `threadId`, `turnId`, and final status. The iOS app polls the
-relay status URL after upload so it can distinguish a queued receipt from Codex
-turn completion.
+- `app-server`: durable background delivery through the supported Codex
+  app-server protocol.
+- `desktop-appshot`: open the phone screenshot on the Mac and trigger Codex
+  Desktop's own Appshot helper path so the attachment lands through the visible
+  composer flow.
+
+The iOS app polls the relay status URL after upload so it can distinguish a
+queued receipt from thread delivery or a triggered Desktop Appshot.
 
 Quick start:
 
