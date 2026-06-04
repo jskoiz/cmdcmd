@@ -17,6 +17,9 @@
 		110000000000000000000108 /* CaptureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000008 /* CaptureStore.swift */; };
 		110000000000000000000109 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000009 /* Formatters.swift */; };
 		11000000000000000000010A /* StatusPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000A /* StatusPresentation.swift */; };
+		110000000000000000000114 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* Theme.swift */; };
+		110000000000000000000115 /* DeviceMockup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000015 /* DeviceMockup.swift */; };
+		11000000000000000000020A /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* Theme.swift */; };
 		11000000000000000000010B /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000B /* GlassPanel.swift */; };
 		11000000000000000000010C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000C /* ContentView.swift */; };
 		11000000000000000000010D /* CaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000D /* CaptureView.swift */; };
@@ -71,6 +74,8 @@
 		110000000000000000000008 /* CaptureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CaptureStore.swift; sourceTree = "<group>"; };
 		110000000000000000000009 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/Formatters.swift; sourceTree = "<group>"; };
 		11000000000000000000000A /* StatusPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/StatusPresentation.swift; sourceTree = "<group>"; };
+		110000000000000000000014 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/Theme.swift; sourceTree = "<group>"; };
+		110000000000000000000015 /* DeviceMockup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/DeviceMockup.swift; sourceTree = "<group>"; };
 		11000000000000000000000B /* GlassPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/GlassPanel.swift; sourceTree = "<group>"; };
 		11000000000000000000000C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ContentView.swift; sourceTree = "<group>"; };
 		11000000000000000000000D /* CaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/CaptureView.swift; sourceTree = "<group>"; };
@@ -135,6 +140,8 @@
 				11000000000000000000000F /* HistoryView.swift */,
 				110000000000000000000010 /* SendScreenshotToCodexIntent.swift */,
 				110000000000000000000013 /* FloatingTabBar.swift */,
+				110000000000000000000014 /* Theme.swift */,
+				110000000000000000000015 /* DeviceMockup.swift */,
 				110000000000000000000011 /* Info.plist */,
 				110000000000000000000012 /* CodexShot.entitlements */,
 			);
@@ -270,6 +277,8 @@
 				110000000000000000000108 /* CaptureStore.swift in Sources */,
 				110000000000000000000109 /* Formatters.swift in Sources */,
 				11000000000000000000010A /* StatusPresentation.swift in Sources */,
+				110000000000000000000114 /* Theme.swift in Sources */,
+				110000000000000000000115 /* DeviceMockup.swift in Sources */,
 				11000000000000000000010B /* GlassPanel.swift in Sources */,
 				11000000000000000000010C /* ContentView.swift in Sources */,
 				11000000000000000000010D /* CaptureView.swift in Sources */,
@@ -291,6 +300,7 @@
 				110000000000000000000205 /* RelayClient.swift in Sources */,
 				110000000000000000000206 /* CapturePipeline.swift in Sources */,
 				110000000000000000000207 /* GlassPanel.swift in Sources */,
+				11000000000000000000020A /* Theme.swift in Sources */,
 				110000000000000000000208 /* ShareViewController.swift in Sources */,
 				110000000000000000000209 /* ShareCaptureView.swift in Sources */,
 			);

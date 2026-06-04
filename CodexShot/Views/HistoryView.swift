@@ -5,65 +5,104 @@ struct HistoryView: View {
     @Bindable var store: CaptureStore
 
     var body: some View {
-        Group {
-            if store.records.isEmpty {
-                ContentUnavailableView("No captures", systemImage: "tray")
-            } else {
-                List {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: Theme.Space.md) {
+                header
+
+                if store.records.isEmpty {
+                    emptyState
+                } else {
                     ForEach(store.records) { record in
-                        CaptureRecordRow(record: record)
+                        CaptureRecordCard(record: record)
                     }
                 }
-                .listStyle(.plain)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
         }
-        .navigationTitle("History")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
-                    store.clearHistory()
-                } label: {
-                    Image(systemName: "trash")
+        .background { AppBackground() }
+        .toolbar(.hidden, for: .navigationBar)
+        .onAppear { store.reload() }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("History")
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                Text(store.records.isEmpty ? "No captures yet" : "\(store.records.count) capture\(store.records.count == 1 ? "" : "s")")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            GlassIconButton(systemName: "trash", tint: store.records.isEmpty ? .secondary : .red) {
+                store.clearHistory()
+            }
+            .disabled(store.records.isEmpty)
+            .accessibilityLabel("Clear history")
+        }
+        .padding(.top, 6)
+    }
+
+    private var emptyState: some View {
+        GlassPanel(tint: Theme.brandBright.opacity(0.10), cornerRadius: Theme.Radius.card, padding: 36) {
+            VStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(Theme.brand.opacity(0.12)).frame(width: 76, height: 76)
+                    Image(systemName: "tray.and.arrow.up")
+                        .font(.system(size: 32, weight: .medium))
+                        .foregroundStyle(Theme.brand)
                 }
-                .disabled(store.records.isEmpty)
-                .accessibilityLabel("Clear history")
+                Text("No captures yet")
+                    .font(.headline)
+                Text("Screenshots you send to Codex will appear here.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
+            .frame(maxWidth: .infinity)
         }
-        .onAppear {
-            store.reload()
-        }
+        .padding(.top, 40)
     }
 }
 
-private struct CaptureRecordRow: View {
+private struct CaptureRecordCard: View {
     var record: CaptureRecord
 
     var body: some View {
-        HStack(spacing: 12) {
-            thumbnail
+        GlassPanel(tint: .white.opacity(0.18), cornerRadius: Theme.Radius.panel, padding: 14) {
+            HStack(spacing: 14) {
+                thumbnail
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Label(record.status.title, systemImage: record.status.symbolName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(record.status.tint)
-                    Spacer()
-                    Text(Formatters.relativeDate.localizedString(for: record.createdAt, relativeTo: .now))
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Label(record.status.title, systemImage: record.status.symbolName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(record.status.tint)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(record.status.tint.opacity(0.12), in: Capsule())
+                        Spacer()
+                        Text(Formatters.relativeDate.localizedString(for: record.createdAt, relativeTo: .now))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(record.userNote.isEmpty ? record.source.title : record.userNote)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+
+                    Text(record.statusMessage)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
-
-                Text(record.userNote.isEmpty ? record.source.title : record.userNote)
-                    .font(.subheadline)
-                    .lineLimit(2)
-
-                Text(record.statusMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
             }
         }
-        .padding(.vertical, 6)
     }
 
     @ViewBuilder
@@ -72,15 +111,19 @@ private struct CaptureRecordRow: View {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
-                .frame(width: 58, height: 58)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(width: 60, height: 60)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(.white.opacity(0.5), lineWidth: 1)
+                }
         } else {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.quinary)
-                .frame(width: 58, height: 58)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Theme.brand.opacity(0.12))
+                .frame(width: 60, height: 60)
                 .overlay {
                     Image(systemName: "photo")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.brand)
                 }
         }
     }
@@ -91,4 +134,3 @@ private struct CaptureRecordRow: View {
         HistoryView(store: CaptureStore())
     }
 }
-

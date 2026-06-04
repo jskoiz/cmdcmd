@@ -14,7 +14,7 @@ struct CaptureView: View {
         ScrollView(showsIndicators: false) {
             glassStack
                 .padding(.horizontal, 20)
-                .padding(.top, 14)
+                .padding(.top, 8)
                 .padding(.bottom, 32)
         }
         .background {
@@ -32,7 +32,7 @@ struct CaptureView: View {
     @ViewBuilder
     private var glassStack: some View {
         if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 18) {
+            GlassEffectContainer(spacing: 20) {
                 contentStack
             }
         } else {
@@ -41,7 +41,7 @@ struct CaptureView: View {
     }
 
     private var contentStack: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             header
             statusCapsule
             screenshotPanel
@@ -49,50 +49,62 @@ struct CaptureView: View {
             contextComposer
 
             if !statusText.isEmpty {
-                Text(statusText)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
+                Label(statusText, systemImage: "sparkle")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.brandDeep)
                     .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 2)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: statusText)
     }
 
     private var header: some View {
-        HStack(alignment: .center) {
-            Text("CodexShot")
-                .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("CodexShot")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                Text("Capture · annotate · relay")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
 
-            GlassIconButton(systemName: "arrow.triangle.2.circlepath", tint: .teal) {
+            GlassIconButton(systemName: "arrow.triangle.2.circlepath", tint: Theme.brand, size: 42) {
                 store.reload()
             }
             .accessibilityLabel("Reload")
         }
-        .padding(.top, 8)
+        .padding(.top, 2)
     }
 
     private var statusCapsule: some View {
         GlassPanel(
-            tint: store.hasEndpoint ? .teal.opacity(0.12) : .orange.opacity(0.14),
-            cornerRadius: 34,
-            padding: 12
+            tint: store.hasEndpoint ? Theme.brand.opacity(0.10) : Theme.warning.opacity(0.14),
+            cornerRadius: 24,
+            padding: 11
         ) {
-            HStack(spacing: 12) {
-                Image(systemName: store.hasEndpoint ? "point.3.connected.trianglepath.dotted" : "link.badge.plus")
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(store.hasEndpoint ? .teal : .orange)
-                    .frame(width: 38, height: 38)
+            HStack(spacing: 11) {
+                ZStack {
+                    Circle()
+                        .fill((store.hasEndpoint ? Theme.brand : Theme.warning).opacity(0.16))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: store.hasEndpoint ? "point.3.connected.trianglepath.dotted" : "link.badge.plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(store.hasEndpoint ? Theme.brand : Theme.warning)
+                }
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text(store.hasEndpoint ? "Relay ready" : "Relay needed")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(store.hasEndpoint ? .teal : .primary)
-                    Text(store.hasEndpoint ? endpointDisplay : "add relay endpoint")
-                        .font(.subheadline)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(store.hasEndpoint ? Theme.brandDeep : .primary)
+                    Text(store.hasEndpoint ? endpointDisplay : "Add a relay endpoint in Settings")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -100,38 +112,41 @@ struct CaptureView: View {
 
                 Spacer()
 
-                Circle()
-                    .fill(store.hasEndpoint ? Color.green : Color.orange)
-                    .frame(width: 12, height: 12)
-                    .shadow(color: (store.hasEndpoint ? Color.green : Color.orange).opacity(0.4), radius: 8)
+                StatusDot(color: store.hasEndpoint ? .green : Theme.warning)
             }
         }
     }
 
     private var screenshotPanel: some View {
-        GlassPanel(tint: .cyan.opacity(0.13), interactive: true, cornerRadius: 34, padding: 0) {
+        GlassPanel(tint: Theme.brandBright.opacity(0.12), interactive: true, cornerRadius: Theme.Radius.card, padding: 0) {
             VStack(spacing: 0) {
                 HStack {
-                    Label("Screenshot", systemImage: "photo")
-                        .font(.headline.weight(.semibold))
+                    Label("Screenshot", systemImage: "photo.on.rectangle.angled")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
 
                     Spacer()
 
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Label(imageData == nil ? "Choose" : "Replace", systemImage: "plus")
-                            .font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(.teal.opacity(0.12), in: Capsule())
+                        Label(imageData == nil ? "Choose" : "Replace", systemImage: imageData == nil ? "plus" : "arrow.triangle.2.circlepath")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 7)
+                            .foregroundStyle(Theme.brandDeep)
+                            .background(Theme.brand.opacity(0.14), in: Capsule())
+                            .overlay { Capsule().strokeBorder(Theme.brand.opacity(0.25), lineWidth: 1) }
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.teal)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 2)
 
                 previewWell
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 8)
+
+                chipRow
                     .padding(.horizontal, 14)
                     .padding(.bottom, 14)
             }
@@ -139,13 +154,13 @@ struct CaptureView: View {
     }
 
     private var previewWell: some View {
-        ZStack(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+        ZStack {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.70),
-                            Color.cyan.opacity(0.18),
+                            Color.white.opacity(0.65),
+                            Theme.brandBright.opacity(0.20),
                             Color.mint.opacity(0.22)
                         ],
                         startPoint: .topLeading,
@@ -153,22 +168,13 @@ struct CaptureView: View {
                     )
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .strokeBorder(.white.opacity(0.72), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .strokeBorder(.white.opacity(0.65), lineWidth: 1)
                 }
-                .shadow(color: .teal.opacity(0.10), radius: 26, x: 0, y: 18)
 
             previewImage
-
-            HStack(spacing: 8) {
-                CaptureChip(symbol: "viewfinder", title: "OCR ready", tint: .teal)
-                CaptureChip(symbol: "text.bubble", title: store.settings.threadHint.isEmpty ? "Thread hint" : "Thread set", tint: .blue)
-                CaptureChip(symbol: store.hasEndpoint ? "lock.shield" : "link.badge.plus", title: store.hasEndpoint ? "Private relay" : "Endpoint", tint: store.hasEndpoint ? .cyan : .orange)
-            }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 14)
         }
-        .frame(height: 216)
+        .frame(height: 272)
     }
 
     @ViewBuilder
@@ -177,56 +183,72 @@ struct CaptureView: View {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
-                .frame(maxWidth: 168, maxHeight: 166)
+                .frame(maxWidth: 168, maxHeight: 238)
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .strokeBorder(.white.opacity(0.55), lineWidth: 1)
                 }
                 .shadow(color: .black.opacity(0.22), radius: 20, x: 0, y: 14)
-                .padding(.bottom, 42)
         } else {
-            MockScreenshotCard()
-                .padding(.bottom, 42)
+            DeviceMockup()
+        }
+    }
+
+    private var chipRow: some View {
+        HStack(spacing: 8) {
+            CaptureChip(symbol: "viewfinder", title: "OCR ready", tint: Theme.brand)
+            CaptureChip(
+                symbol: "text.bubble",
+                title: store.settings.threadHint.isEmpty ? "Thread hint" : "Thread set",
+                tint: Theme.accentBlue
+            )
+            CaptureChip(
+                symbol: store.hasEndpoint ? "lock.shield" : "link.badge.plus",
+                title: store.hasEndpoint ? "Private relay" : "Endpoint",
+                tint: store.hasEndpoint ? Theme.brandBright : Theme.warning
+            )
         }
     }
 
     private var sendButton: some View {
-        PrimaryGlassButton {
+        HeroSendButton(isBusy: isSending) {
             Task { await sendSelectedImage() }
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "paperplane")
-                    .font(.system(size: 26, weight: .semibold))
-                Text(isSending ? "Sending" : "Send to Codex")
-                    .font(.title3.weight(.semibold))
+            HStack(spacing: 10) {
+                if isSending {
+                    ProgressView()
+                        .tint(.white)
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                Text(isSending ? "Sending…" : "Send to Codex")
+                    .font(.headline.weight(.semibold))
             }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
         }
-        .tint(.teal)
         .disabled(isSending)
     }
 
     private var contextComposer: some View {
-        GlassPanel(tint: .white.opacity(0.16), interactive: true, cornerRadius: 32, padding: 14) {
-            HStack(alignment: .center, spacing: 12) {
+        GlassPanel(tint: .white.opacity(0.18), interactive: true, cornerRadius: 26, padding: 10) {
+            HStack(alignment: .center, spacing: 10) {
                 TextField("What should Codex focus on?", text: $note, axis: .vertical)
-                    .font(.title3)
+                    .font(.subheadline)
                     .foregroundStyle(.primary)
-                    .lineLimit(2...4)
+                    .lineLimit(1...4)
                     .textFieldStyle(.plain)
-                    .padding(.leading, 4)
+                    .padding(.leading, 6)
 
-                GlassIconButton(systemName: "wand.and.sparkles", tint: .teal, size: 52) {
+                GlassIconButton(systemName: "wand.and.sparkles", tint: Theme.brand, size: 42) {
                     if note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         note = store.settings.defaultContext
                     }
                 }
                 .accessibilityLabel("Use default context")
             }
-            .frame(minHeight: 52)
+            .frame(minHeight: 42)
         }
     }
 
@@ -243,7 +265,7 @@ struct CaptureView: View {
             return
         }
         isSending = true
-        statusText = "Preparing capture"
+        statusText = "Preparing capture…"
         let record = await store.submit(
             imageData: imageData,
             filename: "screenshot.png",
@@ -252,6 +274,30 @@ struct CaptureView: View {
         )
         statusText = record.statusMessage
         isSending = false
+    }
+}
+
+private struct StatusDot: View {
+    var color: Color
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(color.opacity(0.25))
+                .frame(width: 18, height: 18)
+                .scaleEffect(pulse ? 1.0 : 0.6)
+                .opacity(pulse ? 0 : 0.8)
+            Circle()
+                .fill(color)
+                .frame(width: 9, height: 9)
+                .shadow(color: color.opacity(0.6), radius: 5)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) {
+                pulse = true
+            }
+        }
     }
 }
 
@@ -264,88 +310,15 @@ private struct CaptureChip: View {
         Label(title, systemImage: symbol)
             .font(.caption2.weight(.semibold))
             .lineLimit(1)
-            .minimumScaleFactor(0.75)
+            .minimumScaleFactor(0.72)
             .foregroundStyle(tint)
             .padding(.horizontal, 8)
             .padding(.vertical, 7)
             .frame(maxWidth: .infinity)
             .background(.ultraThinMaterial, in: Capsule())
             .overlay {
-                Capsule()
-                    .strokeBorder(.white.opacity(0.58), lineWidth: 1)
+                Capsule().strokeBorder(tint.opacity(0.30), lineWidth: 1)
             }
-    }
-}
-
-private struct MockScreenshotCard: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack {
-                Circle()
-                    .fill(.white.opacity(0.78))
-                    .frame(width: 7, height: 7)
-                Text("CaptureContext.swift")
-                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.80))
-                Spacer()
-                Image(systemName: "wifi")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.7))
-            }
-
-            VStack(alignment: .leading, spacing: 7) {
-                CodeLine(width: 112, color: .pink)
-                CodeLine(width: 154, color: .cyan)
-                CodeLine(width: 126, color: .mint)
-                CodeLine(width: 168, color: .white.opacity(0.55))
-                CodeLine(width: 138, color: .orange.opacity(0.85))
-                CodeLine(width: 96, color: .white.opacity(0.45))
-            }
-
-            Spacer()
-
-            VStack(alignment: .leading, spacing: 5) {
-                LogLine(text: "[CodexShot] OCR extracted 128 lines")
-                LogLine(text: "[CodexShot] Relay delivered")
-            }
-        }
-        .padding(14)
-            .frame(width: 150, height: 158)
-        .background(
-            LinearGradient(
-                colors: [Color(red: 0.08, green: 0.10, blue: 0.11), Color(red: 0.02, green: 0.04, blue: 0.05)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.24), radius: 20, x: 0, y: 14)
-    }
-}
-
-private struct CodeLine: View {
-    var width: CGFloat
-    var color: Color
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 2, style: .continuous)
-            .fill(color)
-            .frame(width: width, height: 4)
-    }
-}
-
-private struct LogLine: View {
-    var text: String
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 7.5, weight: .medium, design: .monospaced))
-            .foregroundStyle(.green.opacity(0.88))
-            .lineLimit(1)
     }
 }
 

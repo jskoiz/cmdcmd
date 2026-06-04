@@ -39,7 +39,7 @@ struct ContentView: View {
             selectedContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .safeAreaInset(edge: .bottom) {
-                    Color.clear.frame(height: 104)
+                    Color.clear.frame(height: 88)
                 }
 
             FloatingTabBar(selection: $selectedTab)
