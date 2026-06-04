@@ -81,14 +81,14 @@ enum CapturePipeline {
             let relayClient = RelayClient(settings: settings)
             let sendResult = try await relayClient.send(payload)
             record.status = .sent
-            record.statusMessage = queuedMessage(for: settings)
+            record.statusMessage = queuedMessage()
             CaptureRepository.upsert(record)
             capturePipelineLogger.info(
                 "submit accepted captureId=\(record.id.uuidString, privacy: .public) relayStatus=\(sendResult.status, privacy: .public) elapsedMs=\(elapsedMilliseconds(since: startedAt), privacy: .public)"
             )
             do {
                 if let deliveryStatus = try await relayClient.waitForDeliveryStatus(after: sendResult) {
-                    applyDeliveryStatus(deliveryStatus, to: &record, fallbackQueuedMessage: queuedMessage(for: settings))
+                    applyDeliveryStatus(deliveryStatus, to: &record, fallbackQueuedMessage: queuedMessage())
                 }
             } catch {
                 capturePipelineLogger.error(
@@ -118,10 +118,8 @@ enum CapturePipeline {
         return record
     }
 
-    private static func queuedMessage(for settings: RelaySettings) -> String {
-        settings.threadHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "Queued in Codex"
-            : "Queued to Codex thread"
+    private static func queuedMessage() -> String {
+        "Queued"
     }
 
     private static func applyDeliveryStatus(

@@ -14,6 +14,12 @@ const VALID_APPROVAL_POLICIES = new Set([
   "untrusted"
 ]);
 const VALID_WEB_SEARCH_MODES = new Set(["disabled", "cached", "live"]);
+const VALID_DELIVERY_MODES = new Set(["app-server", "desktop-appshot"]);
+const VALID_APPSHOT_HOTKEYS = new Set([
+  "DoubleCommand",
+  "DoubleOption",
+  "DoubleShift"
+]);
 
 export class ConfigError extends Error {
   constructor(message) {
@@ -58,17 +64,31 @@ export function loadConfig(env = process.env, options = {}) {
     VALID_WEB_SEARCH_MODES,
     "CODEXSHOT_CODEX_WEB_SEARCH_MODE"
   );
+  const dryRun = parseBoolean(env.CODEXSHOT_DRY_RUN);
+  const deliveryMode = parseEnum(
+    trim(env.CODEXSHOT_DELIVERY_MODE) || "app-server",
+    VALID_DELIVERY_MODES,
+    "CODEXSHOT_DELIVERY_MODE"
+  );
+  const appshotHelperPath = trim(env.CODEXSHOT_APPSHOT_HELPER);
+
+  if (deliveryMode === "desktop-appshot" && !dryRun && !appshotHelperPath) {
+    throw new ConfigError(
+      "CODEXSHOT_APPSHOT_HELPER is required when CODEXSHOT_DELIVERY_MODE=desktop-appshot."
+    );
+  }
 
   return {
     token,
     host,
     port,
+    deliveryMode,
     inboxDir,
     maxBodyBytes: parsePositiveInteger(
       env.CODEXSHOT_MAX_BODY_BYTES ?? "12500000",
       "CODEXSHOT_MAX_BODY_BYTES"
     ),
-    dryRun: parseBoolean(env.CODEXSHOT_DRY_RUN),
+    dryRun,
     codex: {
       binaryPath:
         trim(env.CODEXSHOT_CODEX_BIN) ||
@@ -91,6 +111,48 @@ export function loadConfig(env = process.env, options = {}) {
         "CODEXSHOT_CODEX_TURN_TIMEOUT_MS"
       ),
       skipGitRepoCheck: parseBoolean(env.CODEXSHOT_CODEX_SKIP_GIT_CHECK)
+    },
+    appshot: {
+      helperPath: appshotHelperPath
+        ? resolveConfiguredPath(appshotHelperPath, cwd)
+        : "",
+      hotkey: parseOptionalEnum(
+        trim(env.CODEXSHOT_APPSHOT_HOTKEY),
+        VALID_APPSHOT_HOTKEYS,
+        "CODEXSHOT_APPSHOT_HOTKEY"
+      ),
+      targetBundle: trim(env.CODEXSHOT_APPSHOT_TARGET_BUNDLE) || undefined,
+      openImageInViewer: parseBooleanDefault(
+        env.CODEXSHOT_APPSHOT_OPEN_VIEWER,
+        true
+      ),
+      viewerBundle:
+        trim(env.CODEXSHOT_APPSHOT_VIEWER_BUNDLE) || "com.apple.Preview",
+      openDelayMs: parsePositiveInteger(
+        env.CODEXSHOT_APPSHOT_OPEN_DELAY_MS ?? "750",
+        "CODEXSHOT_APPSHOT_OPEN_DELAY_MS"
+      ),
+      openTimeoutMs: parsePositiveInteger(
+        env.CODEXSHOT_APPSHOT_OPEN_TIMEOUT_MS ?? "5000",
+        "CODEXSHOT_APPSHOT_OPEN_TIMEOUT_MS"
+      ),
+      helperTimeoutMs: parsePositiveInteger(
+        env.CODEXSHOT_APPSHOT_HELPER_TIMEOUT_MS ?? "30000",
+        "CODEXSHOT_APPSHOT_HELPER_TIMEOUT_MS"
+      ),
+      noPrime: parseBoolean(env.CODEXSHOT_APPSHOT_NO_PRIME),
+      codexDelay: parseOptionalPositiveNumber(
+        env.CODEXSHOT_APPSHOT_CODEX_DELAY,
+        "CODEXSHOT_APPSHOT_CODEX_DELAY"
+      ),
+      restoreDelay: parseOptionalPositiveNumber(
+        env.CODEXSHOT_APPSHOT_RESTORE_DELAY,
+        "CODEXSHOT_APPSHOT_RESTORE_DELAY"
+      ),
+      holdDelay: parseOptionalPositiveNumber(
+        env.CODEXSHOT_APPSHOT_HOLD_DELAY,
+        "CODEXSHOT_APPSHOT_HOLD_DELAY"
+      )
     }
   };
 }
@@ -124,11 +186,32 @@ function parseBoolean(value) {
   return ["1", "true", "yes", "on"].includes(trim(value).toLowerCase());
 }
 
+function parseBooleanDefault(value, defaultValue) {
+  return trim(value) ? parseBoolean(value) : defaultValue;
+}
+
 function parseEnum(value, allowed, name) {
   if (!allowed.has(value)) {
     throw new ConfigError(`${name} must be one of: ${[...allowed].join(", ")}.`);
   }
   return value;
+}
+
+function parseOptionalEnum(value, allowed, name) {
+  return value ? parseEnum(value, allowed, name) : undefined;
+}
+
+function parseOptionalPositiveNumber(value, name) {
+  const trimmed = trim(value);
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number.parseFloat(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new ConfigError(`${name} must be a positive number.`);
+  }
+  return parsed;
 }
 
 function resolveConfiguredPath(value, cwd) {

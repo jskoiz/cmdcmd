@@ -44,11 +44,17 @@ export async function deliverPayload(payload, options) {
     imagePath: stored.imagePath,
     metadataPath: stored.metadataPath
   });
-  deliveryStatusStore?.accept(capture, stored, requestId);
+  deliveryStatusStore?.accept(
+    capture,
+    stored,
+    requestId,
+    options.config.deliveryMode
+  );
 
   void deliverCaptureToCodex(capture, stored, {
     codexClient: options.codexClient,
     deliveryStatusStore,
+    deliveryMode: options.config.deliveryMode,
     logger,
     requestId
   });
@@ -65,11 +71,13 @@ export async function deliverPayload(payload, options) {
 async function deliverCaptureToCodex(capture, stored, options) {
   const logger = options.logger ?? console;
   const requestId = options.requestId ?? null;
+  const deliveryMode = options.deliveryMode ?? "app-server";
   const codexStartedAt = Date.now();
-  options.deliveryStatusStore?.deliver(capture.captureId);
+  options.deliveryStatusStore?.deliver(capture.captureId, deliveryMode);
   logInfo(logger, "capture.codex.delivery_started", {
     requestId,
-    captureId: capture.captureId
+    captureId: capture.captureId,
+    deliveryMode
   });
 
   try {
@@ -79,6 +87,7 @@ async function deliverCaptureToCodex(capture, stored, options) {
       requestId,
       captureId: capture.captureId,
       status: delivery.status,
+      deliveryLane: delivery.deliveryLane ?? null,
       threadId: delivery.threadId ?? null,
       durationMs: Date.now() - codexStartedAt
     });
