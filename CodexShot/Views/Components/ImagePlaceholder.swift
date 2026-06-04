@@ -2,17 +2,23 @@ import SwiftUI
 
 struct ImagePlaceholder: View {
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Theme.brand.opacity(0.10), lineWidth: 1.4)
-                .frame(width: 128, height: 104)
+        VStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(Theme.brand.opacity(0.10), lineWidth: 1.4)
+                    .frame(width: 128, height: 104)
 
-            Image(systemName: "photo")
-                .font(.system(size: 40, weight: .regular))
+                Image(systemName: "photo")
+                    .font(.system(size: 40, weight: .regular))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Tap to upload")
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityLabel("Image placeholder")
+        .accessibilityLabel("Tap to upload image")
     }
 }
 

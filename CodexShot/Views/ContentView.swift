@@ -35,14 +35,13 @@ struct ContentView: View {
     @State private var selectedTab: AppTab = .capture
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack(alignment: .topTrailing) {
             selectedContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .safeAreaInset(edge: .bottom) {
-                    Color.clear.frame(height: 88)
-                }
 
-            FloatingTabBar(selection: $selectedTab, settingsNeedsAttention: !store.hasEndpoint)
+            AppNavigationMenu(selection: $selectedTab, settingsNeedsAttention: !store.hasEndpoint)
+                .padding(.top, 18)
+                .padding(.trailing, 22)
         }
         .tint(Theme.brand)
     }
