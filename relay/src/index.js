@@ -22,6 +22,6 @@ const server = createServer({ config, codexClient });
 server.listen(config.port, config.host, () => {
   const mode = config.dryRun ? "dry-run" : "codex-app-server";
   console.log(
-    `CodexShot relay listening on http://${config.host}:${config.port}/v1/captures (${mode})`
+    `cmd+cmd relay listening on http://${config.host}:${config.port}/v1/captures (${mode})`
   );
 });

@@ -34,7 +34,7 @@ struct ShareCaptureView: View {
                 )
                 .ignoresSafeArea()
             }
-            .navigationTitle("Send to Codex")
+            .navigationTitle("cmd+cmd")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: cancel)
@@ -125,4 +125,3 @@ struct ShareCaptureView: View {
         }
     }
 }
-

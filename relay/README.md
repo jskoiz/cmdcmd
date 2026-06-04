@@ -1,6 +1,6 @@
-# CodexShot Relay
+# cmd+cmd Relay
 
-This private relay receives the JSON payload posted by the CodexShot iOS app,
+This private relay receives the JSON payload posted by the cmd+cmd iOS app,
 saves the screenshot into a local inbox, and sends the note, OCR text, and local
 image into Codex through the supported `codex app-server` protocol. The relay
 uses a native `localImage` input, so Codex receives the screenshot as an image
@@ -9,7 +9,7 @@ attachment rather than only as a file path in prompt text.
 Remote connections are useful for controlling a trusted Codex host from another
 device, but the phone app should not talk to the Codex remote-control layer or
 the Codex app-server directly. Keep this relay as the only HTTP endpoint exposed
-to CodexShot.
+to cmd+cmd.
 
 ## Setup
 
@@ -34,7 +34,7 @@ Start the relay:
 npm start
 ```
 
-Set CodexShot's endpoint to:
+Set cmd+cmd's endpoint to:
 
 ```text
 http://127.0.0.1:8787/v1/captures
@@ -91,7 +91,7 @@ with `CODEXSHOT_CODEX_BIN` if needed.
 
 ## Required App Settings
 
-In CodexShot Settings:
+In cmd+cmd Settings:
 
 - Endpoint URL: `http://127.0.0.1:8787/v1/captures` for simulator, or the
   trusted private URL for a physical phone.

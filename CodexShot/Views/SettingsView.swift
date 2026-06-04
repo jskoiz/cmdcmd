@@ -59,7 +59,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Settings")
                 .font(.system(size: 34, weight: .bold, design: .rounded))
-            Text("Configure your private Codex relay")
+            Text("Configure your private cmd+cmd relay")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
         }

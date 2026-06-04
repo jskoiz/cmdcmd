@@ -1,6 +1,6 @@
-# CodexShot
+# cmd+cmd
 
-CodexShot is a small iPhone companion for sending screenshots plus context to a Codex-side relay.
+cmd+cmd is a small iPhone companion for sending screenshots plus context to a Codex-side relay.
 
 It includes:
 
@@ -47,7 +47,7 @@ cp .env.example .env
 npm start
 ```
 
-Configure CodexShot's endpoint as `http://127.0.0.1:8787/v1/captures` for the
+Configure cmd+cmd's endpoint as `http://127.0.0.1:8787/v1/captures` for the
 iOS Simulator, or use a trusted private network URL for a physical phone.
 Do not expose Codex app-server directly on a shared or public network.
 

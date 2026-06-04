@@ -200,7 +200,7 @@ struct RelayClient {
 
     private func authorizedRequest(url: URL) -> URLRequest {
         var request = URLRequest(url: url)
-        request.setValue("CodexShot/1", forHTTPHeaderField: "User-Agent")
+        request.setValue("cmd+cmd/1", forHTTPHeaderField: "User-Agent")
 
         let token = settings.apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
         if !token.isEmpty {

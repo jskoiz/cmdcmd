@@ -3,8 +3,8 @@ import Foundation
 import UniformTypeIdentifiers
 
 struct SendScreenshotToCodexIntent: AppIntent {
-    static var title: LocalizedStringResource = "Send Screenshot to Codex"
-    static var description = IntentDescription("Uploads an image with optional context to the configured Codex relay.")
+    static var title: LocalizedStringResource = "Send Screenshot to cmd+cmd"
+    static var description = IntentDescription("Uploads an image with optional context to the configured cmd+cmd relay.")
     static var openAppWhenRun = false
 
     @Parameter(
@@ -31,7 +31,7 @@ struct SendScreenshotToCodexIntent: AppIntent {
     }
 }
 
-struct CodexShotShortcuts: AppShortcutsProvider {
+struct CmdCmdShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: SendScreenshotToCodexIntent(),

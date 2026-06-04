@@ -26,7 +26,7 @@ const samplePayload = {
 };
 
 test("deliverPayload validates, stores, and queues the Codex client", async () => {
-  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "codexshot-relay-"));
+  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
   const calls = [];
   let resolveDelivery;
   const deliveryStarted = new Promise((resolve) => {
@@ -67,7 +67,7 @@ test("deliverPayload validates, stores, and queues the Codex client", async () =
 });
 
 test("deliverPayload uses the configured default thread when the payload omits one", async () => {
-  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "codexshot-relay-"));
+  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
   let deliveredThreadHint = "";
   let resolveDelivery;
   const deliveryStarted = new Promise((resolve) => {
@@ -108,13 +108,13 @@ test("buildCodexPrompt includes the stored screenshot and OCR context", () => {
       imageBuffer: Buffer.from("x")
     },
     {
-      imagePath: "/tmp/codexshot/sample.png",
-      metadataPath: "/tmp/codexshot/sample.json"
+      imagePath: "/tmp/cmd-cmd/sample.png",
+      metadataPath: "/tmp/cmd-cmd/sample.json"
     }
   );
 
-  assert.match(prompt, /A screenshot was sent from CodexShot/);
-  assert.match(prompt, /\/tmp\/codexshot\/sample\.png/);
+  assert.match(prompt, /A screenshot was sent from cmd\+cmd/);
+  assert.match(prompt, /\/tmp\/cmd-cmd\/sample\.png/);
   assert.match(prompt, /Please review the screenshot/);
   assert.match(prompt, /OCR from screenshot/);
 });
@@ -126,18 +126,18 @@ test("buildTurnInput sends the screenshot as a native local image", () => {
       imageBuffer: Buffer.from("x")
     },
     {
-      imagePath: "/tmp/codexshot/sample.png",
-      metadataPath: "/tmp/codexshot/sample.json"
+      imagePath: "/tmp/cmd-cmd/sample.png",
+      metadataPath: "/tmp/cmd-cmd/sample.json"
     }
   );
 
   assert.equal(input.length, 2);
   assert.equal(input[0].type, "text");
   assert.equal(input[0].text_elements.length, 0);
-  assert.match(input[0].text, /A screenshot was sent from CodexShot/);
+  assert.match(input[0].text, /A screenshot was sent from cmd\+cmd/);
   assert.deepEqual(input[1], {
     type: "localImage",
-    path: "/tmp/codexshot/sample.png",
+    path: "/tmp/cmd-cmd/sample.png",
     detail: "high"
   });
 });
@@ -153,7 +153,7 @@ test("sandboxModeToPolicy maps relay sandbox settings to app-server policy", () 
 });
 
 test("createServer requires bearer auth for capture posts", async () => {
-  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "codexshot-relay-"));
+  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
   const config = loadConfig(
     {
       CODEXSHOT_RELAY_TOKEN: "secret",
@@ -208,7 +208,7 @@ test("createServer requires bearer auth for capture posts", async () => {
 });
 
 test("createServer exposes authenticated delivery status until completion", async () => {
-  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "codexshot-relay-"));
+  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
   const config = loadConfig(
     {
       CODEXSHOT_RELAY_TOKEN: "secret",

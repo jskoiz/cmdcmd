@@ -36,7 +36,7 @@ export function loadConfig(env = process.env, options = {}) {
   const port = parsePort(env.CODEXSHOT_PORT ?? "8787");
   const inboxDir = resolveConfiguredPath(
     trim(env.CODEXSHOT_INBOX_DIR) ||
-      path.join(os.homedir(), ".codexshot-relay", "inbox"),
+      path.join(os.homedir(), ".cmd-cmd-relay", "inbox"),
     cwd
   );
   const codexCwd = resolveConfiguredPath(

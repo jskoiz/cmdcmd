@@ -1,9 +1,9 @@
 {
-  "name": "codexshot-relay",
+  "name": "cmd-cmd-relay",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Private CodexShot relay for sending screenshots into Codex.",
+  "description": "Private cmd+cmd relay for sending screenshots into Codex.",
   "engines": {
     "node": ">=18"
   },

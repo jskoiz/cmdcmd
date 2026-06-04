@@ -1,6 +1,6 @@
 export function buildCodexPrompt(capture, stored) {
   const sections = [
-    "A screenshot was sent from CodexShot.",
+    "A screenshot was sent from cmd+cmd.",
     [
       "Capture details:",
       `- captureId: ${capture.captureId}`,

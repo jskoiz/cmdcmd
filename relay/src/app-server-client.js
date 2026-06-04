@@ -108,7 +108,7 @@ export class CodexAppServerClient {
       : await session.request("thread/start", {
           ...common,
           threadSource: "user",
-          serviceName: "CodexShot",
+          serviceName: "cmd+cmd",
           baseInstructions: null,
           developerInstructions: null,
           personality: null,
@@ -230,8 +230,8 @@ class AppServerSession {
 
     await this.request("initialize", {
       clientInfo: {
-        name: "codexshot-relay",
-        title: "CodexShot Relay",
+        name: "cmd-cmd-relay",
+        title: "cmd+cmd Relay",
         version: "0.1.0"
       },
       capabilities: {

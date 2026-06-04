@@ -5,7 +5,7 @@
   "source": "shortcut",
   "sourceDetail": "Local smoke test",
   "context": "Smoke test: confirm this screenshot reached the relay.",
-  "recognizedText": "Sample OCR text from CodexShot.",
+  "recognizedText": "Sample OCR text from cmd+cmd.",
   "threadHint": "",
   "imageFilename": "sample.png",
   "imageMimeType": "image/png",
