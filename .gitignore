@@ -4,4 +4,6 @@ build/
 *.xcuserstate
 xcuserdata/
 .xcodebuildmcp/
-
+node_modules/
+relay/.env
+relay/inbox/

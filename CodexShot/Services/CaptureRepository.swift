@@ -12,11 +12,25 @@ enum CaptureRepository {
 
     static func loadSettings() -> RelaySettings {
         guard let data = defaults.data(forKey: settingsKey) else {
+            #if DEBUG
+            if let bootstrapSettings = debugBootstrapSettingsFromEnvironment() {
+                saveSettings(bootstrapSettings)
+                return bootstrapSettings
+            }
+            #endif
             return .empty
         }
 
         do {
-            return try JSONDecoder().decode(RelaySettings.self, from: data)
+            let settings = try JSONDecoder().decode(RelaySettings.self, from: data)
+            #if DEBUG
+            if settings.endpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let bootstrapSettings = debugBootstrapSettingsFromEnvironment() {
+                saveSettings(bootstrapSettings)
+                return bootstrapSettings
+            }
+            #endif
+            return settings
         } catch {
             return .empty
         }
@@ -62,5 +76,22 @@ enum CaptureRepository {
     static func clearRecords() {
         defaults.removeObject(forKey: recordsKey)
     }
-}
 
+    #if DEBUG
+    private static func debugBootstrapSettingsFromEnvironment() -> RelaySettings? {
+        let environment = ProcessInfo.processInfo.environment
+        let endpoint = environment["CODEXSHOT_RELAY_ENDPOINT"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !endpoint.isEmpty else {
+            return nil
+        }
+
+        return RelaySettings(
+            endpoint: endpoint,
+            apiToken: environment["CODEXSHOT_RELAY_TOKEN"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            defaultContext: environment["CODEXSHOT_DEFAULT_CONTEXT"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            threadHint: environment["CODEXSHOT_THREAD_HINT"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            includeRecognizedText: environment["CODEXSHOT_INCLUDE_OCR"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "false"
+        )
+    }
+    #endif
+}

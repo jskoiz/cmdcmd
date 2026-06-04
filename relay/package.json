@@ -1,0 +1,15 @@
+{
+  "name": "codexshot-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Private CodexShot relay for sending screenshots into Codex.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js",
+    "smoke:post": "node scripts/post-sample.js"
+  }
+}

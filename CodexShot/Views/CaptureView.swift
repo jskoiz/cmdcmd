@@ -1,6 +1,12 @@
+import OSLog
 import PhotosUI
 import SwiftUI
 import UIKit
+
+private let captureViewLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CodexShot",
+    category: "CaptureView"
+)
 
 struct CaptureView: View {
     @Bindable var store: CaptureStore
@@ -189,10 +195,15 @@ struct CaptureView: View {
     private func sendSelectedImage() async {
         guard let imageData else {
             statusText = "Choose a screenshot first"
+            captureViewLogger.info("send requested without selected image")
             return
         }
+        captureViewLogger.info(
+            "send requested imageBytes=\(imageData.count, privacy: .public)"
+        )
         isSending = true
         statusText = "Preparing capture…"
+        captureViewLogger.info("ui status set preparing capture")
         let record = await store.submit(
             imageData: imageData,
             filename: "screenshot.png",
@@ -201,6 +212,9 @@ struct CaptureView: View {
         )
         statusText = record.statusMessage
         isSending = false
+        captureViewLogger.info(
+            "send completed status=\(record.status.rawValue, privacy: .public) message=\(record.statusMessage, privacy: .public)"
+        )
     }
 }
 
