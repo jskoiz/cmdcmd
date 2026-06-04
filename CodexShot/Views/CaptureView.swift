@@ -19,6 +19,12 @@ struct CaptureView: View {
         .background {
             AppBackground()
         }
+        .safeAreaInset(edge: .bottom) {
+            sendButton
+                .padding(.horizontal, 22)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+        }
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: selectedPhoto) { _, newValue in
             guard let newValue else { return }
@@ -40,12 +46,11 @@ struct CaptureView: View {
     }
 
     private func contentStack(height: CGFloat) -> some View {
-        let panelHeight = min(max(height - 280, 360), 520)
+        let panelHeight = min(max(height - 190, 430), 560)
 
         return VStack(alignment: .leading, spacing: 16) {
             header
             screenshotPanel(height: panelHeight)
-            sendButton
 
             if !statusText.isEmpty {
                 Label(statusText, systemImage: "sparkle")
@@ -79,49 +84,12 @@ struct CaptureView: View {
     }
 
     private func screenshotPanel(height: CGFloat) -> some View {
-        GlassPanel(tint: .white.opacity(0.12), interactive: true, cornerRadius: 28, padding: 0) {
-            VStack(spacing: 0) {
-                HStack(spacing: 8) {
-                    Spacer()
-
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Label(imageData == nil ? "Choose" : "Replace", systemImage: imageData == nil ? "plus" : "arrow.triangle.2.circlepath")
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .foregroundStyle(.primary)
-                            .background(Theme.brand.opacity(0.06), in: Capsule())
-                            .overlay { Capsule().strokeBorder(Theme.brand.opacity(0.12), lineWidth: 1) }
-                    }
-                    .buttonStyle(.plain)
-
-                    compactReloadButton
-                }
-                .padding(.horizontal, 18)
-                .padding(.top, 14)
-                .padding(.bottom, 10)
-
-                previewWell(height: max(height - 71, 0))
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
-            }
-        }
-        .frame(height: height)
-    }
-
-    private var compactReloadButton: some View {
-        Button {
-            store.reload()
-        } label: {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
-                .frame(width: 31, height: 31)
-                .background(Theme.brand.opacity(0.06), in: Circle())
-                .overlay { Circle().strokeBorder(Theme.brand.opacity(0.12), lineWidth: 1) }
+        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+            previewWell(height: height)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Reload")
+        .accessibilityLabel(imageData == nil ? "Choose image" : "Replace image")
+        .frame(height: height)
     }
 
     private func previewWell(height: CGFloat) -> some View {
