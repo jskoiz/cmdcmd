@@ -6,7 +6,7 @@
     <title>cmd+cmd — link your iPhone to Codex Desktop</title>
     <meta
       name="description"
-      content="Install the private Mac relay, scan the terminal QR in the iPhone app, and send screenshots straight into your active Codex Desktop composer."
+      content="Run the Mac installer, scan its terminal QR in cmd+cmd on iPhone, and send screenshots to Codex Desktop."
     />
     <meta name="theme-color" content="#ffffff" />
     <link rel="icon" href="./assets/icon.png" />
@@ -15,11 +15,11 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://cmd.avmil.xyz/" />
     <meta property="og:title" content="cmd+cmd — link your iPhone to Codex Desktop" />
-    <meta property="og:description" content="Install the Mac relay, scan the terminal QR in the iPhone app, and send screenshots into Codex Desktop." />
+    <meta property="og:description" content="Run the Mac installer, scan its terminal QR on iPhone, and send screenshots to Codex Desktop." />
     <meta property="og:image" content="https://cmd.avmil.xyz/assets/icon.png" />
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="cmd+cmd — link your iPhone to Codex Desktop" />
-    <meta name="twitter:description" content="Install the Mac relay, scan the terminal QR in the iPhone app, and send screenshots into Codex Desktop." />
+    <meta name="twitter:description" content="Run the Mac installer, scan its terminal QR on iPhone, and send screenshots to Codex Desktop." />
     <meta name="twitter:image" content="https://cmd.avmil.xyz/assets/icon.png" />
 
     <script>document.documentElement.classList.add("js");</script>
@@ -43,7 +43,7 @@
         <span class="tick bl" aria-hidden="true"></span>
         <span class="tick br" aria-hidden="true"></span>
         <span class="eyebrow">[ 00 ]&nbsp;&nbsp;INSTALL&nbsp;→&nbsp;SCAN&nbsp;→&nbsp;SEND</span>
-        <h1>Link your iPhone to Codex Desktop.</h1>
+        <h1>Pair your iPhone with Codex Desktop.</h1>
         <div class="cta-row">
           <a class="cta" href="#install">GET&nbsp;CMD+CMD <span class="arr">→</span></a>
         </div>
@@ -55,7 +55,7 @@
           <div class="col-l-sticky">
             <span class="idx">[ 01 ]</span>
             <h2>Host &middot; Mac relay</h2>
-            <p class="note">Run one command on the Mac with Codex Desktop. The installer starts the private relay and prints the QR your iPhone scans.</p>
+            <p class="note">Run the installer on the Mac with Codex Desktop. It starts the relay and prints a private QR.</p>
           </div>
         </div>
         <div class="col-r">
@@ -63,20 +63,20 @@
             <li class="step">
               <span class="n">01</span>
               <div class="body">
-                <p>Install the signed <b>cmd+cmd&nbsp;Relay</b> bundle from Terminal on the Mac running Codex Desktop.</p>
+                <p>Run this on the Mac that has Codex Desktop open.</p>
                 <span class="cap-lbl">Terminal</span>
                 <div class="code">
                   <pre><span class="p">$</span> curl -fsSL https://cmd.avmil.xyz/install.sh | bash<span class="cursor" aria-hidden="true"></span></pre>
                   <button class="copy" data-copy="curl -fsSL https://cmd.avmil.xyz/install.sh | bash">Copy</button>
                 </div>
-                <p class="aside">When the background relay is ready, Terminal shows the private QR code for the iPhone app to scan.</p>
-                <p class="aside">Rather not pipe a script straight into <span class="hl">bash</span>? Download and open it first:</p>
+                <p class="aside">When the relay is ready, Terminal prints the QR for your iPhone to scan.</p>
+                <p class="aside">Prefer to inspect first?</p>
                 <div class="code">
                   <pre><span class="p">$</span> curl -fsSL https://cmd.avmil.xyz/install.sh -o install.sh
 <span class="p">$</span> less install.sh</pre>
                   <button class="copy" data-copy="curl -fsSL https://cmd.avmil.xyz/install.sh -o install.sh&#10;less install.sh">Copy</button>
                 </div>
-                <p class="aside">Looks good? Run it with <span class="hl">bash install.sh</span>.</p>
+                <p class="aside">Then run <span class="hl">bash install.sh</span>.</p>
                 <details class="disclosure">
                   <summary>Inspect the install script</summary>
                   <div class="code code-scroll">
@@ -286,9 +286,9 @@ Background service: $LAUNCH_AGENT_LABEL
 Logs: $ERR_LOG
 
 Next:
-1. Open cmd+cmd on iPhone, go to Settings, and tap Scan Desktop QR.
-2. Scan the QR printed above.
-3. Send screenshots into the active Codex Desktop chat.
+1. Open cmd+cmd on iPhone.
+2. In Settings, tap Scan Desktop QR and scan the QR above.
+3. Send AppShots to Codex Desktop.
 EOF</pre>
                     <button class="copy" data-copy-pre>Copy</button>
                   </div>
@@ -298,13 +298,13 @@ EOF</pre>
             <li class="step">
               <span class="n">02</span>
               <div class="body">
-                <p>The installer keeps the relay running in the background with a per-user bearer token and a private-network endpoint for this Mac.</p>
+                <p>The QR contains this Mac's local relay address and private token. Scan it; do not type those values by hand.</p>
               </div>
             </li>
             <li class="step">
               <span class="n">03</span>
               <div class="body">
-                <p>Grant macOS <b>Accessibility</b> permission once, so the relay can paste into the visible Codex&nbsp;Desktop composer.</p>
+                <p>Grant macOS <b>Accessibility</b> permission once so the relay can paste AppShots into Codex Desktop.</p>
               </div>
             </li>
           </ol>
@@ -317,22 +317,22 @@ EOF</pre>
           <div class="col-l-sticky">
             <span class="idx">[ 02 ]</span>
             <h2>Phone &middot; Pair &amp; send</h2>
-            <p class="note">Open the iOS app, scan the QR shown in Terminal, then send from anywhere on your phone.</p>
+            <p class="note">Open cmd+cmd, scan the terminal QR, then send from your phone.</p>
           </div>
         </div>
         <div class="col-r">
           <ol class="steps">
             <li class="step">
               <span class="n">01</span>
-              <div class="body"><p>Install <b>cmd+cmd</b> on iPhone from TestFlight or the App&nbsp;Store.</p></div>
+              <div class="body"><p>Install and open <b>cmd+cmd</b> on iPhone.</p></div>
             </li>
             <li class="step">
               <span class="n">02</span>
-              <div class="body"><p>Open Settings in the iOS app, tap <b>Scan Desktop QR</b>, and scan the QR printed by the installer.</p></div>
+              <div class="body"><p>In Settings, tap <b>Scan Desktop QR</b> and scan the QR shown in Terminal.</p></div>
             </li>
             <li class="step">
               <span class="n">03</span>
-              <div class="body"><p>Send a screenshot from the <b>Share sheet</b>, a <b>Shortcut</b>, or <b>Back&nbsp;Tap</b>. OCR runs on-device, then it lands in the frontmost Codex chat.</p></div>
+              <div class="body"><p>Send from the <b>Share sheet</b>, a <b>Shortcut</b>, or <b>Back&nbsp;Tap</b>. The AppShot lands in Codex Desktop.</p></div>
             </li>
           </ol>
 
@@ -340,11 +340,11 @@ EOF</pre>
           <dl class="kv">
             <div class="row">
               <dt class="k">Endpoint</dt>
-              <dd class="v"><span class="mono">http://127.0.0.1:8787/v1/captures</span><span class="small">Set by hand for the iOS Simulator. Physical phones should use the installer QR so the private-network address and token match this Mac.</span></dd>
+              <dd class="v"><span class="mono">http://127.0.0.1:8787/v1/captures</span><span class="small">Simulator only. iPhones should scan the terminal QR so the Mac address and token are correct.</span></dd>
             </div>
             <div class="row">
               <dt class="k">Bearer token</dt>
-              <dd class="v"><span class="mono">CMDCMD_RELAY_TOKEN</span><span class="small">The value encoded in the Terminal pairing QR.</span></dd>
+              <dd class="v"><span class="mono">CMDCMD_RELAY_TOKEN</span><span class="small">Encoded in the terminal QR.</span></dd>
             </div>
           </dl>
         </div>

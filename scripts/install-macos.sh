@@ -204,7 +204,7 @@ Background service: $LAUNCH_AGENT_LABEL
 Logs: $ERR_LOG
 
 Next:
-1. Open cmd+cmd on iPhone, go to Settings, and tap Scan Desktop QR.
-2. Scan the QR printed above.
-3. Send screenshots into the active Codex Desktop chat.
+1. Open cmd+cmd on iPhone.
+2. In Settings, tap Scan Desktop QR and scan the QR above.
+3. Send AppShots to Codex Desktop.
 EOF
