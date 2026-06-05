@@ -1,0 +1,17 @@
+/
+  Cache-Control: no-store
+
+/*.html
+  Cache-Control: no-store
+
+/install.sh
+  Cache-Control: no-store
+
+/styles.css
+  Cache-Control: public, max-age=300, must-revalidate
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/dl/*
+  Cache-Control: public, max-age=14400, must-revalidate
