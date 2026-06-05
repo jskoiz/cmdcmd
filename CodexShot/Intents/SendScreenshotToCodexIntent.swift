@@ -47,7 +47,8 @@ struct SendLatestScreenshotToCodexIntent: AppIntent {
                 filename: screenshot.filename,
                 note: context,
                 source: .shortcut,
-                sourceDetail: "Latest Screenshot"
+                sourceDetail: "Latest Screenshot",
+                imageMetadata: screenshot.metadata
             )
 
             return .result(dialog: IntentDialog(stringLiteral: record.statusMessage))

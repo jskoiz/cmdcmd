@@ -31,15 +31,21 @@ final class CaptureStore {
         records = []
     }
 
-    func submit(imageData: Data, filename: String, note: String, source: CaptureSource) async -> CaptureRecord {
+    func submit(
+        imageData: Data,
+        filename: String,
+        note: String,
+        source: CaptureSource,
+        imageMetadata: CaptureImageMetadata = .empty
+    ) async -> CaptureRecord {
         let record = await CapturePipeline.submit(
             imageData: imageData,
             filename: filename,
             note: note,
-            source: source
+            source: source,
+            imageMetadata: imageMetadata
         )
         reload()
         return record
     }
 }
-

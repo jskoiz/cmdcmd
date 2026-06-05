@@ -1,4 +1,5 @@
 import OSLog
+import Photos
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -12,6 +13,7 @@ struct CaptureView: View {
     @Bindable var store: CaptureStore
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var imageData: Data?
+    @State private var imageMetadata: CaptureImageMetadata = .empty
     @State private var isSending = false
     @State private var statusText = ""
 
@@ -35,7 +37,11 @@ struct CaptureView: View {
         .onChange(of: selectedPhoto) { _, newValue in
             guard let newValue else { return }
             Task {
-                imageData = try? await newValue.loadTransferable(type: Data.self)
+                let selectedImageData = try? await newValue.loadTransferable(type: Data.self)
+                await MainActor.run {
+                    imageData = selectedImageData
+                    imageMetadata = Self.metadata(for: newValue)
+                }
             }
         }
     }
@@ -176,12 +182,30 @@ struct CaptureView: View {
             imageData: imageData,
             filename: "screenshot.png",
             note: "",
-            source: .mainApp
+            source: .mainApp,
+            imageMetadata: imageMetadata
         )
         statusText = record.statusMessage
         isSending = false
         captureViewLogger.info(
             "send completed status=\(record.status.rawValue, privacy: .public) message=\(record.statusMessage, privacy: .public)"
+        )
+    }
+
+    private static func metadata(for item: PhotosPickerItem) -> CaptureImageMetadata {
+        guard let itemIdentifier = item.itemIdentifier else {
+            return .empty
+        }
+
+        let result = PHAsset.fetchAssets(withLocalIdentifiers: [itemIdentifier], options: nil)
+        guard let asset = result.firstObject else {
+            return .empty
+        }
+
+        return CaptureImageMetadata(
+            capturedAt: asset.creationDate,
+            pixelWidth: asset.pixelWidth,
+            pixelHeight: asset.pixelHeight
         )
     }
 }

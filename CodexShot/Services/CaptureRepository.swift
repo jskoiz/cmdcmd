@@ -89,7 +89,6 @@ enum CaptureRepository {
             endpoint: endpoint,
             apiToken: environment["CODEXSHOT_RELAY_TOKEN"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
             defaultContext: environment["CODEXSHOT_DEFAULT_CONTEXT"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-            threadHint: environment["CODEXSHOT_THREAD_HINT"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
             includeRecognizedText: environment["CODEXSHOT_INCLUDE_OCR"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "false"
         )
     }

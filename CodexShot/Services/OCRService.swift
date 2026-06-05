@@ -9,7 +9,7 @@ private let ocrLogger = Logger(
 )
 
 enum OCRService {
-    static func recognizedText(from imageData: Data) async -> String {
+    static func report(from imageData: Data) async -> OCRReport {
         let startedAt = Date()
         ocrLogger.info("recognition task group started imageBytes=\(imageData.count, privacy: .public)")
 
@@ -23,28 +23,47 @@ enum OCRService {
                 return .timedOut
             }
 
-            let result = await group.next() ?? .recognized("")
+            let result = await group.next() ?? .recognized(
+                RecognizedTextPayload(lines: [], averageConfidence: nil)
+            )
             group.cancelAll()
             switch result {
-            case .recognized(let text):
+            case .recognized(let payload):
+                let durationMs = elapsedMilliseconds(since: startedAt)
+                let text = payload.lines.joined(separator: "\n")
                 ocrLogger.info(
-                    "recognition task group completed textChars=\(text.count, privacy: .public) durationMs=\(elapsedMilliseconds(since: startedAt), privacy: .public)"
+                    "recognition task group completed textChars=\(text.count, privacy: .public) lines=\(payload.lines.count, privacy: .public) durationMs=\(durationMs, privacy: .public)"
                 )
-                return text
+                return OCRReport(
+                    text: text,
+                    durationMs: durationMs,
+                    lineCount: payload.lines.count,
+                    characterCount: text.count,
+                    timedOut: false,
+                    averageConfidence: payload.averageConfidence
+                )
             case .timedOut:
+                let durationMs = elapsedMilliseconds(since: startedAt)
                 ocrLogger.error(
-                    "recognition timed out durationMs=\(elapsedMilliseconds(since: startedAt), privacy: .public)"
+                    "recognition timed out durationMs=\(durationMs, privacy: .public)"
                 )
-                return ""
+                return OCRReport(
+                    text: "",
+                    durationMs: durationMs,
+                    lineCount: 0,
+                    characterCount: 0,
+                    timedOut: true,
+                    averageConfidence: nil
+                )
             }
         }
     }
 
-    private static func performRecognition(from imageData: Data) async -> String {
+    private static func performRecognition(from imageData: Data) async -> RecognizedTextPayload {
         await Task.detached(priority: .userInitiated) {
             guard let image = UIImage(data: imageData), let cgImage = image.cgImage else {
                 ocrLogger.error("recognition failed to decode image")
-                return ""
+                return RecognizedTextPayload(lines: [], averageConfidence: nil)
             }
 
             let request = VNRecognizeTextRequest()
@@ -58,29 +77,41 @@ enum OCRService {
                 try handler.perform([request])
             } catch {
                 ocrLogger.error("vision request failed error=\(error.localizedDescription, privacy: .public)")
-                return ""
+                return RecognizedTextPayload(lines: [], averageConfidence: nil)
             }
 
             let observations = request.results ?? []
-            let lines = observations
+            let candidates = observations
                 .sorted { lhs, rhs in
                     if abs(lhs.boundingBox.midY - rhs.boundingBox.midY) > 0.02 {
                         return lhs.boundingBox.midY > rhs.boundingBox.midY
                     }
                     return lhs.boundingBox.minX < rhs.boundingBox.minX
                 }
-                .compactMap { observation in
-                    observation.topCandidates(1).first?.string
+                .compactMap { observation -> VNRecognizedText? in
+                    observation.topCandidates(1).first
                 }
+                .filter { candidate in
+                    candidate.confidence >= 0.35
+                }
+            let lines = candidates.map(\.string)
+            let averageConfidence = candidates.isEmpty
+                ? nil
+                : Double(candidates.map(\.confidence).reduce(0, +) / Float(candidates.count))
 
             ocrLogger.info("vision request completed observations=\(observations.count, privacy: .public) lines=\(lines.count, privacy: .public)")
-            return lines.joined(separator: "\n")
+            return RecognizedTextPayload(lines: lines, averageConfidence: averageConfidence)
         }.value
     }
 }
 
+private struct RecognizedTextPayload {
+    var lines: [String]
+    var averageConfidence: Double?
+}
+
 private enum OCRResult {
-    case recognized(String)
+    case recognized(RecognizedTextPayload)
     case timedOut
 }
 

@@ -1,12 +1,35 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "captureId": "11111111-1111-4111-8111-111111111111",
   "createdAt": "2026-06-04T12:00:00.000Z",
   "source": "shortcut",
   "sourceDetail": "Local smoke test",
+  "screenshotContext": {
+    "capturedAt": "2026-06-04T12:00:00.000Z",
+    "preparedAt": "2026-06-04T12:00:01.000Z",
+    "timeZoneIdentifier": "UTC",
+    "source": "shortcut",
+    "sourceDetail": "Local smoke test",
+    "imageFilename": "sample.png",
+    "imageMimeType": "image/png",
+    "pixelWidth": 8,
+    "pixelHeight": 8,
+    "originalImageBytes": 176,
+    "uploadImageBytes": 176,
+    "ocrEnabled": true,
+    "ocrDurationMs": 325,
+    "ocrLineCount": 1,
+    "ocrCharacterCount": 29,
+    "ocrTimedOut": false,
+    "ocrAverageConfidence": 0.92,
+    "visibleApp": {
+      "name": "cmd+cmd",
+      "confidence": "medium",
+      "evidence": ["Send to Codex", "OCR ready"]
+    }
+  },
   "context": "Smoke test: confirm this screenshot reached the relay.",
   "recognizedText": "Sample OCR text from cmd+cmd.",
-  "threadHint": "",
   "imageFilename": "sample.png",
   "imageMimeType": "image/png",
   "imageBase64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAACKADAAQAAAABAAAACAAAAACVhHtSAAAAGklEQVQIHWMW2Nkoy776XwcPGsnEgAMMTgkAzi8JTigyXpYAAAAASUVORK5CYII="

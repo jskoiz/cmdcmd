@@ -5,11 +5,10 @@ export function createDeliveryStatusStore(options = {}) {
   const statuses = new Map();
 
   return {
-    accept(capture, stored, requestId, deliveryMode = "app-server") {
+    accept(capture, stored, requestId) {
       return write(capture.captureId, {
         status: "accepted",
-        message: queuedMessage(capture, deliveryMode),
-        deliveryMode,
+        message: "Queued for the frontmost Codex chat",
         requestId,
         imagePath: stored.imagePath,
         metadataPath: stored.metadataPath,
@@ -17,34 +16,27 @@ export function createDeliveryStatusStore(options = {}) {
       });
     },
 
-    deliver(captureId, deliveryMode = "app-server") {
+    deliver(captureId) {
       return write(captureId, {
         status: "delivering",
-        message: deliveringMessage(deliveryMode),
-        deliveryMode
+        message: "Attaching to the frontmost Codex chat"
       });
     },
 
     complete(captureId, delivery) {
       return write(captureId, {
         status: "delivered",
-        message: delivery.message ?? deliveredMessage(delivery.deliveryLane),
-        threadId: delivery.threadId ?? null,
-        turnId: delivery.turnId ?? null,
-        turnStatus: delivery.turnStatus ?? null,
+        message:
+          delivery.message ??
+          "Attached phone screenshot in the frontmost Codex chat",
         deliveryLane: delivery.deliveryLane ?? null
       });
     },
 
     fail(captureId, error) {
-      const previous = statuses.get(captureId);
-      const prefix =
-        previous?.deliveryMode === "desktop-appshot"
-          ? "Desktop Appshot failed"
-          : "Codex delivery failed";
       return write(captureId, {
         status: "failed",
-        message: `${prefix}: ${truncate(error.message)}`,
+        message: `Codex Desktop attach failed: ${truncate(error.message)}`,
         error: truncate(error.message)
       });
     },
@@ -70,25 +62,6 @@ export function createDeliveryStatusStore(options = {}) {
     pruneOldest(statuses);
     return { ...status };
   }
-}
-
-function queuedMessage(capture, deliveryMode) {
-  if (deliveryMode === "desktop-appshot") {
-    return "Queued for Desktop Appshot";
-  }
-  return capture.threadHint ? "Queued to Codex thread" : "Queued in Codex";
-}
-
-function deliveringMessage(deliveryMode) {
-  return deliveryMode === "desktop-appshot"
-    ? "Triggering Desktop Appshot"
-    : "Sending to Codex thread";
-}
-
-function deliveredMessage(deliveryLane) {
-  return deliveryLane === "desktop-appshot"
-    ? "Triggered Desktop Appshot"
-    : "Delivered to Codex thread";
 }
 
 function nowIso(now) {

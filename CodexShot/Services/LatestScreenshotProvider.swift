@@ -4,6 +4,7 @@ import Photos
 struct LatestScreenshotCapture {
     var data: Data
     var filename: String
+    var metadata: CaptureImageMetadata
 }
 
 enum LatestScreenshotProvider {
@@ -29,7 +30,12 @@ enum LatestScreenshotProvider {
         let data = try await imageData(for: asset)
         return LatestScreenshotCapture(
             data: data,
-            filename: originalFilename(for: asset) ?? "latest-screenshot.png"
+            filename: originalFilename(for: asset) ?? "latest-screenshot.png",
+            metadata: CaptureImageMetadata(
+                capturedAt: asset.creationDate,
+                pixelWidth: asset.pixelWidth,
+                pixelHeight: asset.pixelHeight
+            )
         )
     }
 

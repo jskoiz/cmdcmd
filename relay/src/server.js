@@ -68,7 +68,6 @@ export function createServer({ config, codexClient, logger = console }) {
         requestId,
         captureId: result.captureId,
         status: result.status,
-        threadId: result.threadId ?? null,
         durationMs: Date.now() - startedAt
       });
       return sendJson(response, result.status === "accepted" ? 202 : 200, result);
