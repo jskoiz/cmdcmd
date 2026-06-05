@@ -227,16 +227,26 @@ enum DesktopDelivery {
     }
 
     private static func attachmentText(capture: CapturePayload) -> String? {
+        let rawRecognizedText = capture.recognizedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let recognizedText = OCRAttachmentTextCleaner.clean(rawRecognizedText)
         let sections = [
-            screenshotContextText(capture.screenshotContext),
+            screenshotContextText(
+                capture.screenshotContext,
+                rawRecognizedText: rawRecognizedText,
+                recognizedText: recognizedText
+            ),
             capture.context.isEmpty ? nil : "Context:\n\(capture.context)",
-            capture.recognizedText.isEmpty ? nil : "OCR text:\n\(capture.recognizedText)"
+            recognizedText.isEmpty ? nil : "OCR text:\n\(recognizedText)"
         ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
 
         return sections.isEmpty ? nil : sections.joined(separator: "\n\n")
     }
 
-    private static func screenshotContextText(_ context: ScreenshotContext) -> String? {
+    private static func screenshotContextText(
+        _ context: ScreenshotContext,
+        rawRecognizedText: String,
+        recognizedText: String
+    ) -> String? {
         var lines: [String] = []
         let source = [humanizedSource(context.source), context.sourceDetail]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -258,13 +268,38 @@ enum DesktopDelivery {
         } else {
             lines.append("Image: \(context.imageFilename); \(context.imageMimeType)")
         }
-        if context.ocrEnabled {
-            lines.append("OCR: \(context.ocrLineCount) lines, \(context.ocrCharacterCount) characters")
-        } else {
-            lines.append("OCR: off")
-        }
+        lines.append(ocrSummary(context, rawRecognizedText: rawRecognizedText, recognizedText: recognizedText))
 
         return "Screenshot context:\n\(lines.joined(separator: "\n"))"
+    }
+
+    private static func ocrSummary(
+        _ context: ScreenshotContext,
+        rawRecognizedText: String,
+        recognizedText: String
+    ) -> String {
+        guard context.ocrEnabled else {
+            return "OCR: off"
+        }
+
+        if context.ocrTimedOut {
+            return "OCR: timed out"
+        }
+
+        let cleanedStats = OCRAttachmentTextCleaner.stats(for: recognizedText)
+        if cleanedStats.lineCount > 0 {
+            let filtered = cleanedStats.lineCount < context.ocrLineCount
+                || cleanedStats.characterCount < context.ocrCharacterCount
+            let lineLabel = "\(cleanedStats.lineCount) \(filtered ? "useful " : "")line\(cleanedStats.lineCount == 1 ? "" : "s")"
+            return "OCR: \(lineLabel), \(cleanedStats.characterCount) character\(cleanedStats.characterCount == 1 ? "" : "s")"
+        }
+
+        let rawStats = OCRAttachmentTextCleaner.stats(for: rawRecognizedText)
+        if context.ocrLineCount > 0 || context.ocrCharacterCount > 0 || rawStats.lineCount > 0 {
+            return "OCR: noisy text omitted"
+        }
+
+        return "OCR: no useful text"
     }
 
     private static func humanizedSource(_ value: String) -> String? {
@@ -351,5 +386,185 @@ enum DesktopDelivery {
         } else {
             app.activate(options: [.activateIgnoringOtherApps])
         }
+    }
+}
+
+private enum OCRAttachmentTextCleaner {
+    struct TextStats {
+        var lineCount: Int
+        var characterCount: Int
+    }
+
+    private static let maxLines = 16
+    private static let maxCharacters = 1_200
+    private static let ignoredStatusLines: Set<String> = [
+        "phone"
+    ]
+    private static let allowedTrailingCharacters = Set(".!?%")
+
+    static func clean(_ value: String) -> String {
+        let lines = value
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+
+        var cleanedLines: [String] = []
+        var seenKeys = Set<String>()
+        var characterCount = 0
+
+        for rawLine in lines {
+            guard let line = cleanedText(String(rawLine)),
+                  isInformative(line) else {
+                continue
+            }
+
+            let key = dedupeKey(line)
+            guard !key.isEmpty, !seenKeys.contains(key) else {
+                continue
+            }
+
+            let nextCharacterCount = characterCount + line.count + (cleanedLines.isEmpty ? 0 : 1)
+            guard cleanedLines.isEmpty || nextCharacterCount <= maxCharacters else {
+                break
+            }
+
+            cleanedLines.append(line)
+            seenKeys.insert(key)
+            characterCount = nextCharacterCount
+
+            if cleanedLines.count >= maxLines {
+                break
+            }
+        }
+
+        return cleanedLines.joined(separator: "\n")
+    }
+
+    static func stats(for value: String) -> TextStats {
+        let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            return TextStats(lineCount: 0, characterCount: 0)
+        }
+
+        let lineCount = text
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .count
+        return TextStats(lineCount: lineCount, characterCount: text.count)
+    }
+
+    private static func cleanedText(_ rawText: String) -> String? {
+        var text = normalizedWhitespace(rawText)
+        text = strippedEdgeJunk(text)
+
+        var tokens = text.split(separator: " ").map(String.init)
+        while tokens.count > 1, isLeadingArtifact(tokens[0]) {
+            tokens.removeFirst()
+        }
+
+        text = strippedEdgeJunk(tokens.joined(separator: " "))
+        return text.isEmpty ? nil : text
+    }
+
+    private static func isInformative(_ text: String) -> Bool {
+        let key = dedupeKey(text)
+        guard !key.isEmpty, !ignoredStatusLines.contains(key) else {
+            return false
+        }
+
+        if text.range(of: #"^\d{1,2}:\d{2}$"#, options: .regularExpression) != nil {
+            return false
+        }
+
+        let letters = text.unicodeScalars.filter(isLetter).count
+        guard letters > 0 else {
+            return false
+        }
+
+        let usefulWords = key.split(separator: " ").filter { word in
+            word.count >= 3 && word.unicodeScalars.contains(where: isLetter)
+        }
+        guard !usefulWords.isEmpty else {
+            return false
+        }
+
+        let digits = text.unicodeScalars.filter(isDigit).count
+        let noisySymbols = text.unicodeScalars.filter { scalar in
+            !isLetter(scalar)
+                && !isDigit(scalar)
+                && !CharacterSet.whitespacesAndNewlines.contains(scalar)
+                && !CharacterSet(charactersIn: ".,:;!?%+#@&()/-").contains(scalar)
+        }.count
+        return noisySymbols <= letters + digits
+    }
+
+    private static func isLeadingArtifact(_ token: String) -> Bool {
+        let scalars = Array(token.unicodeScalars)
+        guard !scalars.isEmpty else {
+            return true
+        }
+
+        if scalars.allSatisfy(isDigit) {
+            return true
+        }
+
+        if scalars.allSatisfy({ !isLetter($0) && !isDigit($0) }) {
+            return true
+        }
+
+        let normalized = token.lowercased()
+        return normalized.count == 1 && normalized != "a" && normalized != "i"
+    }
+
+    private static func normalizedWhitespace(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func strippedEdgeJunk(_ value: String) -> String {
+        var start = value.startIndex
+        while start < value.endIndex, !containsAlphanumeric(value[start]) {
+            start = value.index(after: start)
+        }
+
+        var end = value.endIndex
+        while start < end {
+            let previous = value.index(before: end)
+            let character = value[previous]
+            if containsAlphanumeric(character) || allowedTrailingCharacters.contains(character) {
+                break
+            }
+            end = previous
+        }
+
+        return String(value[start..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func dedupeKey(_ value: String) -> String {
+        let lowered = value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+        let scalars = lowered.unicodeScalars.map { scalar -> String in
+            if isLetter(scalar) || isDigit(scalar) {
+                return String(scalar)
+            }
+            return " "
+        }.joined()
+        return normalizedWhitespace(scalars)
+    }
+
+    private static func containsAlphanumeric(_ character: Character) -> Bool {
+        character.unicodeScalars.contains { scalar in
+            isLetter(scalar) || isDigit(scalar)
+        }
+    }
+
+    private static func isLetter(_ scalar: UnicodeScalar) -> Bool {
+        CharacterSet.letters.contains(scalar)
+    }
+
+    private static func isDigit(_ scalar: UnicodeScalar) -> Bool {
+        CharacterSet.decimalDigits.contains(scalar)
     }
 }

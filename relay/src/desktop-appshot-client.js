@@ -3,6 +3,11 @@ import fs from "node:fs/promises";
 import { ensureDesktopHelper } from "./desktop-helper.js";
 import { logInfo } from "./logger.js";
 
+const MAX_OCR_ATTACHMENT_LINES = 16;
+const MAX_OCR_ATTACHMENT_CHARS = 1200;
+const IGNORED_OCR_STATUS_LINES = new Set(["phone"]);
+const ALLOWED_OCR_SYMBOLS = new Set(".,:;!?%+#@&()/-");
+
 export class DesktopAppshotClient {
   constructor(config, options = {}) {
     this.config = config;
@@ -93,9 +98,13 @@ export function buildDesktopHelperArgs(imagePath, appshot, options = {}) {
 
 export function buildDesktopAttachmentText(capture) {
   const sections = [];
-  const screenshotContext = formatScreenshotContext(capture.screenshotContext);
   const context = cleanMultiline(capture.context);
-  const recognizedText = cleanMultiline(capture.recognizedText);
+  const rawRecognizedText = cleanMultiline(capture.recognizedText);
+  const recognizedText = cleanOCRTextForAttachment(rawRecognizedText);
+  const screenshotContext = formatScreenshotContext(capture.screenshotContext, {
+    rawRecognizedText,
+    recognizedText
+  });
 
   if (screenshotContext) {
     sections.push(`Screenshot context:\n${screenshotContext}`);
@@ -130,7 +139,132 @@ function cleanMultiline(value) {
     : "";
 }
 
-function formatScreenshotContext(context) {
+function cleanOCRTextForAttachment(value) {
+  const text = cleanMultiline(value);
+  if (!text) {
+    return "";
+  }
+
+  const lines = [];
+  const seenKeys = new Set();
+  let characterCount = 0;
+
+  for (const rawLine of text.split("\n")) {
+    const line = cleanOCRLine(rawLine);
+    if (!line || !isInformativeOCRLine(line)) {
+      continue;
+    }
+
+    const key = ocrDedupeKey(line);
+    if (!key || seenKeys.has(key)) {
+      continue;
+    }
+
+    const nextCharacterCount = characterCount + line.length + (lines.length ? 1 : 0);
+    if (lines.length > 0 && nextCharacterCount > MAX_OCR_ATTACHMENT_CHARS) {
+      break;
+    }
+
+    lines.push(line);
+    seenKeys.add(key);
+    characterCount = nextCharacterCount;
+
+    if (lines.length >= MAX_OCR_ATTACHMENT_LINES) {
+      break;
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function cleanOCRLine(value) {
+  let line = cleanInline(value);
+  line = stripOCREdgeJunk(line);
+
+  const tokens = line.split(" ").filter(Boolean);
+  while (tokens.length > 1 && isLeadingOCRArtifact(tokens[0])) {
+    tokens.shift();
+  }
+
+  return stripOCREdgeJunk(tokens.join(" "));
+}
+
+function stripOCREdgeJunk(value) {
+  return value
+    .replace(/^[^\p{L}\p{N}]+/u, "")
+    .replace(/[^\p{L}\p{N}.!?%]+$/u, "")
+    .trim();
+}
+
+function isInformativeOCRLine(line) {
+  const key = ocrDedupeKey(line);
+  if (!key || IGNORED_OCR_STATUS_LINES.has(key)) {
+    return false;
+  }
+
+  if (/^\d{1,2}:\d{2}$/.test(line)) {
+    return false;
+  }
+
+  const letters = countMatches(line, /\p{L}/gu);
+  if (letters === 0) {
+    return false;
+  }
+
+  const usefulWords = key
+    .split(" ")
+    .filter((word) => word.length >= 3 && /\p{L}/u.test(word));
+  if (usefulWords.length === 0) {
+    return false;
+  }
+
+  const digits = countMatches(line, /\p{N}/gu);
+  const noisySymbols = Array.from(line).filter((character) => {
+    if (/[\p{L}\p{N}\s]/u.test(character)) {
+      return false;
+    }
+    return !ALLOWED_OCR_SYMBOLS.has(character);
+  }).length;
+  return noisySymbols <= letters + digits;
+}
+
+function isLeadingOCRArtifact(token) {
+  if (/^\p{N}+$/u.test(token)) {
+    return true;
+  }
+  if (/^[^\p{L}\p{N}]+$/u.test(token)) {
+    return true;
+  }
+
+  const normalized = token.toLocaleLowerCase();
+  return normalized.length === 1 && normalized !== "a" && normalized !== "i";
+}
+
+function ocrDedupeKey(value) {
+  return value
+    .normalize("NFKD")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replaceAll(/\s+/g, " ")
+    .trim();
+}
+
+function countMatches(value, pattern) {
+  return Array.from(value.matchAll(pattern)).length;
+}
+
+function textStats(value) {
+  const text = cleanMultiline(value);
+  if (!text) {
+    return { lineCount: 0, characterCount: 0 };
+  }
+  return {
+    lineCount: text.split("\n").filter((line) => line.trim()).length,
+    characterCount: text.length
+  };
+}
+
+function formatScreenshotContext(context, ocrText = {}) {
   if (!context || typeof context !== "object") {
     return "";
   }
@@ -188,17 +322,48 @@ function formatScreenshotContext(context) {
   if (context.ocrEnabled === false) {
     lines.push("OCR: off");
   } else {
-    const ocrParts = [
-      formatCount(context.ocrLineCount, "line"),
-      formatCount(context.ocrCharacterCount, "character"),
-      formatDuration(context.ocrDurationMs),
-      formatConfidence(context.ocrAverageConfidence)
-    ].filter(Boolean);
-    const label = context.ocrTimedOut ? "OCR timed out" : "OCR";
-    lines.push(ocrParts.length > 0 ? `${label}: ${ocrParts.join(", ")}` : label);
+    lines.push(formatOCRSummary(context, ocrText));
   }
 
   return lines.join("\n");
+}
+
+function formatOCRSummary(context, { rawRecognizedText = "", recognizedText = "" } = {}) {
+  const duration = formatDuration(context.ocrDurationMs);
+  const confidence = formatConfidence(context.ocrAverageConfidence);
+
+  if (context.ocrTimedOut) {
+    return ["OCR: timed out", duration].filter(Boolean).join(", ");
+  }
+
+  const cleanedStats = textStats(recognizedText);
+  const rawStats = textStats(rawRecognizedText);
+  const rawLineCount = Number.isInteger(context.ocrLineCount)
+    ? context.ocrLineCount
+    : rawStats.lineCount;
+  const rawCharacterCount = Number.isInteger(context.ocrCharacterCount)
+    ? context.ocrCharacterCount
+    : rawStats.characterCount;
+
+  if (cleanedStats.lineCount > 0) {
+    const filtered = cleanedStats.lineCount < rawLineCount
+      || cleanedStats.characterCount < rawCharacterCount;
+    const lineLabel = `${cleanedStats.lineCount} ${filtered ? "useful " : ""}line${cleanedStats.lineCount === 1 ? "" : "s"}`;
+    return [
+      `OCR: ${lineLabel}`,
+      formatCount(cleanedStats.characterCount, "character"),
+      duration,
+      confidence
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (rawLineCount > 0 || rawCharacterCount > 0 || rawStats.lineCount > 0) {
+    return ["OCR: noisy text omitted", duration].filter(Boolean).join(", ");
+  }
+
+  return ["OCR: no useful text", duration].filter(Boolean).join(", ");
 }
 
 function humanizeSource(value) {

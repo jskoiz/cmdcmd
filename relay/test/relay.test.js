@@ -318,6 +318,91 @@ test("buildDesktopAttachmentText includes context and OCR", () => {
   );
 });
 
+test("buildDesktopAttachmentText filters noisy OCR lines", () => {
+  const noisyPayload = {
+    ...samplePayload,
+    source: "mainApp",
+    sourceDetail: "",
+    context: "",
+    screenshotContext: {
+      ...samplePayload.screenshotContext,
+      source: "mainApp",
+      sourceDetail: "",
+      ocrLineCount: 16,
+      ocrCharacterCount: 140,
+      visibleApp: {
+        name: "cmd+cmd",
+        confidence: "medium",
+        evidence: ["OCR ready", "Thread hint"]
+      }
+    },
+    recognizedText: [
+      "4 Phone",
+      "8:04",
+      "+",
+      "*",
+      "•••",
+      "3:19",
+      "• | 5 5",
+      "26 + H",
+      "•••",
+      "CodexShot",
+      "& OCR ready",
+      "U Thread hint",
+      ") Sending to Codex",
+      "* Sending...",
+      "Sending to Codex",
+      "Sending..."
+    ].join("\n")
+  };
+
+  assert.equal(
+    buildDesktopAttachmentText(noisyPayload),
+    [
+      "Screenshot context:",
+      "Source: Main app",
+      "Captured: Jun 04, 2026, 12:00:00 PM UTC",
+      "Prepared: Jun 04, 2026, 12:00:01 PM UTC",
+      "Visible app: cmd+cmd (medium inference from OCR ready, Thread hint)",
+      "Image: ../unsafe name.png; image/png; 8x8; 176 B",
+      "OCR: 5 useful lines, 59 characters, 412 ms, avg confidence 89%",
+      "",
+      "OCR text:",
+      "CodexShot",
+      "OCR ready",
+      "Thread hint",
+      "Sending to Codex",
+      "Sending..."
+    ].join("\n")
+  );
+});
+
+test("buildDesktopAttachmentText omits low-signal OCR text", () => {
+  const noisyPayload = {
+    ...samplePayload,
+    context: "",
+    screenshotContext: {
+      ...samplePayload.screenshotContext,
+      ocrLineCount: 5,
+      ocrCharacterCount: 18
+    },
+    recognizedText: ["8:04", "+", "•••", "3:19", "5 5"].join("\n")
+  };
+
+  assert.equal(
+    buildDesktopAttachmentText(noisyPayload),
+    [
+      "Screenshot context:",
+      "Source: Shortcut - Unit test",
+      "Captured: Jun 04, 2026, 12:00:00 PM UTC",
+      "Prepared: Jun 04, 2026, 12:00:01 PM UTC",
+      "Visible app: Photos (high inference from Library, Collections, Syncing Paused)",
+      "Image: ../unsafe name.png; image/png; 8x8; 176 B",
+      "OCR: noisy text omitted, 412 ms"
+    ].join("\n")
+  );
+});
+
 test("delivery status reports Codex Desktop progress honestly", () => {
   const store = createDeliveryStatusStore();
   const capture = {
