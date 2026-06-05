@@ -4,7 +4,7 @@ set -euo pipefail
 APP_NAME="cmd+cmd Relay.app"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/Applications}"
 APP_PATH="$INSTALL_DIR/$APP_NAME"
-RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://github.com/jskoiz/CodexShot/releases/latest/download}"
+RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://github.com/jskoiz/cmdcmd/releases/latest/download}"
 ARCHIVE_NAME="CmdCmdRelay-macOS.zip"
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
 if [[ -n "$SCRIPT_SOURCE" && "$SCRIPT_SOURCE" != bash ]]; then
