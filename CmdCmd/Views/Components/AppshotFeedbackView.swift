@@ -164,9 +164,10 @@ struct AppshotCaptureFeedbackView: View {
     var body: some View {
         let metrics = layoutMetrics
 
-        VStack(spacing: phase == .failed ? 8 : 10) {
+        VStack(spacing: phase == .failed ? 10 : 10) {
             snapshot(width: metrics.previewWidth, height: metrics.previewHeight)
             statusLine
+                .frame(width: metrics.statusWidth)
         }
         .frame(width: metrics.cardWidth)
         .scaleEffect(expanded ? 1 : 0.04, anchor: .center)
@@ -199,7 +200,7 @@ struct AppshotCaptureFeedbackView: View {
         return min(max(rawRatio, 0.72), 2.35)
     }
 
-    private var layoutMetrics: (cardWidth: CGFloat, previewWidth: CGFloat, previewHeight: CGFloat) {
+    private var layoutMetrics: (cardWidth: CGFloat, previewWidth: CGFloat, previewHeight: CGFloat, statusWidth: CGFloat) {
         let screen = UIScreen.main.bounds.size
         let cardWidth = min(max(screen.width - 64, 280), 320)
         let maxPreviewWidth = cardWidth - 42
@@ -213,7 +214,7 @@ struct AppshotCaptureFeedbackView: View {
             previewWidth = previewHeight / previewAspectRatio
         }
 
-        return (cardWidth, previewWidth, previewHeight)
+        return (cardWidth, previewWidth, previewHeight, cardWidth)
     }
 
     private func snapshot(width: CGFloat, height: CGFloat) -> some View {
@@ -260,54 +261,81 @@ struct AppshotCaptureFeedbackView: View {
 
     @ViewBuilder
     private var statusContent: some View {
-        let content = HStack(alignment: .top, spacing: 10) {
-            Image(systemName: phase.symbolName)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 18, height: 18)
-                .background(phase.accent, in: Circle())
+        if phase == .failed, let openSettings {
+            Button(action: openSettings) {
+                failureStatusContent
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens settings")
+        } else if phase == .failed {
+            failureStatusContent
+        } else {
+            completionStatusContent
+        }
+    }
+
+    private var completionStatusContent: some View {
+        HStack(alignment: .center, spacing: 10) {
+            statusIcon
+
+            Text(phase.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .contentShape(Rectangle())
+    }
+
+    private var failureStatusContent: some View {
+        HStack(alignment: .top, spacing: 10) {
+            statusIcon
                 .padding(.top, 1)
 
-            if phase == .failed, let message, !message.isEmpty {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(phase.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    Text(message)
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if openSettings != nil {
-                        Text(settingsActionTitle)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(phase.accent)
-                            .padding(.top, 1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(phase.title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: phase == .failed ? .leading : .center)
-        .contentShape(Rectangle())
 
-        if phase == .failed, let openSettings {
-            Button(action: openSettings) {
-                content
+                if let message, !message.isEmpty {
+                    Text(message)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if openSettings != nil {
+                    Text(settingsActionTitle)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(phase.accent)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                        .padding(.top, 1)
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens settings")
-        } else {
-            content
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var statusIcon: some View {
+        Image(systemName: phase.symbolName)
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 18, height: 18)
+            .background(phase.accent, in: Circle())
     }
 
     @ViewBuilder
@@ -337,9 +365,10 @@ struct AppshotCaptureFeedbackView: View {
     ZStack {
         AppBackground()
         AppshotCaptureFeedbackView(
-            phase: .sending,
+            phase: .failed,
             imageData: nil,
-            message: nil
+            message: "Relay rejected the capture with HTTP 401: {\"error\":\"unauthorized.\"}",
+            openSettings: {}
         )
     }
 }

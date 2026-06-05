@@ -5,17 +5,17 @@ struct ImagePlaceholder: View {
         VStack(spacing: 10) {
             ZStack {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .strokeBorder(Theme.brand.opacity(0.10), lineWidth: 1.4)
+                    .strokeBorder(Theme.brand.opacity(0.18), lineWidth: 1.4)
                     .frame(width: 128, height: 104)
 
                 Image(systemName: "photo")
                     .font(.system(size: 40, weight: .regular))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
             }
 
             Text("Tap to upload")
                 .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityLabel("Tap to upload image")

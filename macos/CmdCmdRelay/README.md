@@ -2,7 +2,9 @@
 
 Native macOS companion for cmd+cmd. It receives private iPhone screenshot
 uploads, stores them locally, and attaches them to the frontmost Codex Desktop
-composer through macOS pasteboard and Accessibility.
+composer through macOS pasteboard and Accessibility. The distributable bundle
+runs as a headless LaunchAgent; setup, pairing, logs, and QR display stay in
+Terminal.
 
 ## Build
 
@@ -31,9 +33,9 @@ credentials and should be run against the exported zip before publishing.
 - The relay never reads Codex credentials, sessions, cookies, or private app
   files.
 - The relay requires a per-user bearer token for every capture and status call.
-- The default listener is `127.0.0.1`; private-network mode is explicit.
+- The installer prepares private-network mode for phone pairing and starts the
+  headless relay in the background.
 - Screenshots and metadata stay under the user's local Application Support
   directory.
 - Accessibility is required only so the relay can focus Codex Desktop and paste
   into the visible composer.
-

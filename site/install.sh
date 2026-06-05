@@ -2,8 +2,14 @@
 set -euo pipefail
 
 APP_NAME="cmd+cmd Relay.app"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/Applications}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/Library/Application Support/cmdcmd-relay}"
 APP_PATH="$INSTALL_DIR/$APP_NAME"
+RELAY_EXECUTABLE="$APP_PATH/Contents/MacOS/CmdCmdRelayApp"
+LAUNCH_AGENT_LABEL="app.cmdcmd.relay"
+LAUNCH_AGENT_PLIST="$HOME/Library/LaunchAgents/$LAUNCH_AGENT_LABEL.plist"
+LOG_DIR="$HOME/Library/Logs"
+OUT_LOG="$LOG_DIR/cmdcmd-relay.log"
+ERR_LOG="$LOG_DIR/cmdcmd-relay.err.log"
 RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://cmd.avmil.xyz/dl}"
 ARCHIVE_NAME="CmdCmdRelay-macOS.zip"
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
@@ -22,26 +28,19 @@ trap cleanup EXIT
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/install-macos.sh [--start-at-login] [--no-open]
+Usage: scripts/install-macos.sh
 
-Installs cmd+cmd Relay.app into ~/Applications by default.
+Installs the cmd+cmd Relay bundle, starts the private background relay, waits
+until it is ready, and prints a QR code for the iOS app to scan.
 
 Environment:
-  INSTALL_DIR                 Override destination app directory.
+  INSTALL_DIR                 Override destination bundle directory.
   CMDCMD_RELAY_RELEASE_URL    Override release download base URL.
 USAGE
 }
 
-START_AT_LOGIN=0
-NO_OPEN=0
 for arg in "$@"; do
   case "$arg" in
-    --start-at-login)
-      START_AT_LOGIN=1
-      ;;
-    --no-open)
-      NO_OPEN=1
-      ;;
     -h|--help)
       usage
       exit 0
@@ -82,29 +81,92 @@ download_archive() {
   echo "$archive"
 }
 
+stop_existing_relay() {
+  local pids
+  launchctl bootout "gui/$(id -u)" "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
+  pids="$(pgrep -f "cmd\\+cmd Relay\\.app/Contents/MacOS/CmdCmdRelayApp" || true)"
+  if [[ -n "$pids" ]]; then
+    kill $pids >/dev/null 2>&1 || true
+  fi
+}
+
+prepare_pairing() {
+  if [[ ! -x "$RELAY_EXECUTABLE" ]]; then
+    echo "Could not find relay executable." >&2
+    exit 1
+  fi
+
+  "$RELAY_EXECUTABLE" --prepare-pairing
+}
+
 install_launch_agent() {
-  local plist="$HOME/Library/LaunchAgents/app.cmdcmd.relay.plist"
-  mkdir -p "$(dirname "$plist")"
-  cat > "$plist" <<PLIST
+  mkdir -p "$(dirname "$LAUNCH_AGENT_PLIST")" "$LOG_DIR"
+  cat > "$LAUNCH_AGENT_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>app.cmdcmd.relay</string>
+  <string>$LAUNCH_AGENT_LABEL</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/bin/open</string>
-    <string>-a</string>
-    <string>$APP_PATH</string>
+    <string>$RELAY_EXECUTABLE</string>
+    <string>--serve</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>$OUT_LOG</string>
+  <key>StandardErrorPath</key>
+  <string>$ERR_LOG</string>
 </dict>
 </plist>
 PLIST
-  launchctl unload "$plist" >/dev/null 2>&1 || true
-  launchctl load "$plist"
+
+  launchctl bootout "gui/$(id -u)" "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
+  launchctl bootstrap "gui/$(id -u)" "$LAUNCH_AGENT_PLIST"
+  launchctl kickstart -k "gui/$(id -u)/$LAUNCH_AGENT_LABEL" >/dev/null 2>&1 || true
+}
+
+wait_for_relay() {
+  for _ in {1..40}; do
+    if curl -fsS "http://127.0.0.1:8787/healthz" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo "Relay did not become reachable on http://127.0.0.1:8787/healthz." >&2
+  echo "Recent relay log:" >&2
+  if [[ -f "$ERR_LOG" ]]; then
+    tail -n 20 "$ERR_LOG" >&2 || true
+  else
+    echo "No error log yet at $ERR_LOG" >&2
+  fi
+  exit 1
+}
+
+request_accessibility() {
+  if "$RELAY_EXECUTABLE" --accessibility-status >/dev/null 2>&1; then
+    echo "Accessibility permission already granted."
+    return
+  fi
+
+  echo "Requesting Accessibility permission for screenshot delivery..."
+  "$RELAY_EXECUTABLE" --request-accessibility || true
+}
+
+print_pairing_qr() {
+  if [[ ! -x "$RELAY_EXECUTABLE" ]]; then
+    echo "Could not find relay executable for pairing QR." >&2
+    exit 1
+  fi
+
+  "$RELAY_EXECUTABLE" --print-pairing-qr
 }
 
 ARCHIVE="$(download_archive)"
@@ -112,9 +174,11 @@ ditto -x -k "$ARCHIVE" "$TMP_DIR/unpacked"
 
 FOUND_APP="$(find "$TMP_DIR/unpacked" -maxdepth 2 -name "$APP_NAME" -type d | head -n 1)"
 if [[ -z "$FOUND_APP" ]]; then
-  echo "Could not find $APP_NAME in archive." >&2
+  echo "Could not find relay bundle in archive." >&2
   exit 1
 fi
+
+stop_existing_relay
 
 mkdir -p "$INSTALL_DIR"
 rm -rf "$APP_PATH"
@@ -123,22 +187,22 @@ ditto "$FOUND_APP" "$APP_PATH"
 if codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1; then
   echo "Signature verified."
 else
-  echo "Installed app is not signed or signature verification failed." >&2
+  echo "Installed bundle is not signed or signature verification failed." >&2
 fi
 
-if [[ "$START_AT_LOGIN" == "1" ]]; then
-  install_launch_agent
-fi
-
-if [[ "$NO_OPEN" == "0" ]]; then
-  open "$APP_PATH"
-fi
+prepare_pairing
+install_launch_agent
+wait_for_relay
+request_accessibility
+print_pairing_qr
 
 cat <<EOF
 Installed: $APP_PATH
+Background service: $LAUNCH_AGENT_LABEL
+Logs: $ERR_LOG
 
 Next:
-1. Grant Accessibility permission when macOS asks.
-2. Enable private-network mode in cmd+cmd Relay if pairing a physical iPhone.
-3. Scan the pairing code from the iPhone app.
+1. Open cmd+cmd on iPhone, go to Settings, and tap Scan Desktop QR.
+2. Scan the QR printed above.
+3. Send screenshots into the active Codex Desktop chat.
 EOF

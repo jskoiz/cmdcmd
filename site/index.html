@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>cmd+cmd — AppShots, extended to your phone</title>
+    <title>cmd+cmd — link your iPhone to Codex Desktop</title>
     <meta
       name="description"
-      content="A small iPhone companion that pushes a screenshot — with on-device OCR — straight into your active Codex Desktop composer, over a private local relay."
+      content="Install the private Mac relay, scan the terminal QR in the iPhone app, and send screenshots straight into your active Codex Desktop composer."
     />
     <meta name="theme-color" content="#ffffff" />
     <link rel="icon" href="./assets/icon.png" />
@@ -14,12 +14,12 @@
     <!-- Open Graph / Twitter -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://cmd.avmil.xyz/" />
-    <meta property="og:title" content="cmd+cmd — AppShots, extended to your phone" />
-    <meta property="og:description" content="iPhone screenshots, with on-device OCR, into your active Codex Desktop composer. Private local relay." />
+    <meta property="og:title" content="cmd+cmd — link your iPhone to Codex Desktop" />
+    <meta property="og:description" content="Install the Mac relay, scan the terminal QR in the iPhone app, and send screenshots into Codex Desktop." />
     <meta property="og:image" content="https://cmd.avmil.xyz/assets/icon.png" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="cmd+cmd — AppShots, extended to your phone" />
-    <meta name="twitter:description" content="iPhone screenshots, with on-device OCR, into your active Codex Desktop composer." />
+    <meta name="twitter:title" content="cmd+cmd — link your iPhone to Codex Desktop" />
+    <meta name="twitter:description" content="Install the Mac relay, scan the terminal QR in the iPhone app, and send screenshots into Codex Desktop." />
     <meta name="twitter:image" content="https://cmd.avmil.xyz/assets/icon.png" />
 
     <script>document.documentElement.classList.add("js");</script>
@@ -42,8 +42,8 @@
         <span class="tick tr" aria-hidden="true"></span>
         <span class="tick bl" aria-hidden="true"></span>
         <span class="tick br" aria-hidden="true"></span>
-        <span class="eyebrow">[ 00 ]&nbsp;&nbsp;PHONE&nbsp;→&nbsp;CODEX&nbsp;DESKTOP</span>
-        <h1>AppShots extended to your phone.</h1>
+        <span class="eyebrow">[ 00 ]&nbsp;&nbsp;INSTALL&nbsp;→&nbsp;SCAN&nbsp;→&nbsp;SEND</span>
+        <h1>Link your iPhone to Codex Desktop.</h1>
         <div class="cta-row">
           <a class="cta" href="#install">GET&nbsp;CMD+CMD <span class="arr">→</span></a>
         </div>
@@ -55,7 +55,7 @@
           <div class="col-l-sticky">
             <span class="idx">[ 01 ]</span>
             <h2>Host &middot; Mac relay</h2>
-            <p class="note">Runs on the Mac with Codex Desktop. Receives the capture and pastes it in. No Xcode, no npm.</p>
+            <p class="note">Run one command on the Mac with Codex Desktop. The installer starts the private relay and prints the QR your iPhone scans.</p>
           </div>
         </div>
         <div class="col-r">
@@ -63,13 +63,13 @@
             <li class="step">
               <span class="n">01</span>
               <div class="body">
-                <p>Install the signed <b>cmd+cmd&nbsp;Relay</b> app with one command.</p>
+                <p>Install the signed <b>cmd+cmd&nbsp;Relay</b> bundle from Terminal on the Mac running Codex Desktop.</p>
                 <span class="cap-lbl">Terminal</span>
                 <div class="code">
                   <pre><span class="p">$</span> curl -fsSL https://cmd.avmil.xyz/install.sh | bash<span class="cursor" aria-hidden="true"></span></pre>
                   <button class="copy" data-copy="curl -fsSL https://cmd.avmil.xyz/install.sh | bash">Copy</button>
                 </div>
-                <p class="aside">To launch it automatically each login, end the command with <span class="hl">bash -s -- --start-at-login</span>.</p>
+                <p class="aside">When the background relay is ready, Terminal shows the private QR code for the iPhone app to scan.</p>
                 <p class="aside">Rather not pipe a script straight into <span class="hl">bash</span>? Download and open it first:</p>
                 <div class="code">
                   <pre><span class="p">$</span> curl -fsSL https://cmd.avmil.xyz/install.sh -o install.sh
@@ -83,53 +83,52 @@
                     <pre>#!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="cmd+cmd Relay.app"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/Applications}"
-APP_PATH="$INSTALL_DIR/$APP_NAME"
-RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://cmd.avmil.xyz/dl}"
-ARCHIVE_NAME="CmdCmdRelay-macOS.zip"
-SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
-if [[ -n "$SCRIPT_SOURCE" &amp;&amp; "$SCRIPT_SOURCE" != bash ]]; then
-  ROOT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")/.." &amp;&amp; pwd)"
+APP_NAME=&quot;cmd+cmd Relay.app&quot;
+INSTALL_DIR=&quot;${INSTALL_DIR:-$HOME/Library/Application Support/cmdcmd-relay}&quot;
+APP_PATH=&quot;$INSTALL_DIR/$APP_NAME&quot;
+RELAY_EXECUTABLE=&quot;$APP_PATH/Contents/MacOS/CmdCmdRelayApp&quot;
+LAUNCH_AGENT_LABEL=&quot;app.cmdcmd.relay&quot;
+LAUNCH_AGENT_PLIST=&quot;$HOME/Library/LaunchAgents/$LAUNCH_AGENT_LABEL.plist&quot;
+LOG_DIR=&quot;$HOME/Library/Logs&quot;
+OUT_LOG=&quot;$LOG_DIR/cmdcmd-relay.log&quot;
+ERR_LOG=&quot;$LOG_DIR/cmdcmd-relay.err.log&quot;
+RELEASE_BASE_URL=&quot;${CMDCMD_RELAY_RELEASE_URL:-https://cmd.avmil.xyz/dl}&quot;
+ARCHIVE_NAME=&quot;CmdCmdRelay-macOS.zip&quot;
+SCRIPT_SOURCE=&quot;${BASH_SOURCE[0]:-}&quot;
+if [[ -n &quot;$SCRIPT_SOURCE&quot; &amp;&amp; &quot;$SCRIPT_SOURCE&quot; != bash ]]; then
+  ROOT_DIR=&quot;$(cd &quot;$(dirname &quot;$SCRIPT_SOURCE&quot;)/..&quot; &amp;&amp; pwd)&quot;
 else
-  ROOT_DIR="$(pwd)"
+  ROOT_DIR=&quot;$(pwd)&quot;
 fi
-LOCAL_ARCHIVE="$ROOT_DIR/dist/cmdcmd-relay/$ARCHIVE_NAME"
-TMP_DIR="$(mktemp -d)"
+LOCAL_ARCHIVE=&quot;$ROOT_DIR/dist/cmdcmd-relay/$ARCHIVE_NAME&quot;
+TMP_DIR=&quot;$(mktemp -d)&quot;
 
 cleanup() {
-  rm -rf "$TMP_DIR"
+  rm -rf &quot;$TMP_DIR&quot;
 }
 trap cleanup EXIT
 
 usage() {
-  cat &lt;&lt;'USAGE'
-Usage: scripts/install-macos.sh [--start-at-login] [--no-open]
+  cat &lt;&lt;&#39;USAGE&#39;
+Usage: scripts/install-macos.sh
 
-Installs cmd+cmd Relay.app into ~/Applications by default.
+Installs the cmd+cmd Relay bundle, starts the private background relay, waits
+until it is ready, and prints a QR code for the iOS app to scan.
 
 Environment:
-  INSTALL_DIR                 Override destination app directory.
+  INSTALL_DIR                 Override destination bundle directory.
   CMDCMD_RELAY_RELEASE_URL    Override release download base URL.
 USAGE
 }
 
-START_AT_LOGIN=0
-NO_OPEN=0
-for arg in "$@"; do
-  case "$arg" in
-    --start-at-login)
-      START_AT_LOGIN=1
-      ;;
-    --no-open)
-      NO_OPEN=1
-      ;;
+for arg in &quot;$@&quot;; do
+  case &quot;$arg&quot; in
     -h|--help)
       usage
       exit 0
       ;;
     *)
-      echo "Unknown argument: $arg" &gt;&amp;2
+      echo &quot;Unknown argument: $arg&quot; &gt;&amp;2
       usage
       exit 64
       ;;
@@ -137,92 +136,157 @@ for arg in "$@"; do
 done
 
 download_archive() {
-  local archive="$TMP_DIR/$ARCHIVE_NAME"
-  local checksum="$TMP_DIR/$ARCHIVE_NAME.sha256"
+  local archive=&quot;$TMP_DIR/$ARCHIVE_NAME&quot;
+  local checksum=&quot;$TMP_DIR/$ARCHIVE_NAME.sha256&quot;
 
-  if [[ -f "$LOCAL_ARCHIVE" ]]; then
-    cp "$LOCAL_ARCHIVE" "$archive"
-    if [[ -f "$LOCAL_ARCHIVE.sha256" ]]; then
-      cp "$LOCAL_ARCHIVE.sha256" "$checksum"
+  if [[ -f &quot;$LOCAL_ARCHIVE&quot; ]]; then
+    cp &quot;$LOCAL_ARCHIVE&quot; &quot;$archive&quot;
+    if [[ -f &quot;$LOCAL_ARCHIVE.sha256&quot; ]]; then
+      cp &quot;$LOCAL_ARCHIVE.sha256&quot; &quot;$checksum&quot;
     fi
   else
-    curl -fsSL "$RELEASE_BASE_URL/$ARCHIVE_NAME" -o "$archive"
-    curl -fsSL "$RELEASE_BASE_URL/$ARCHIVE_NAME.sha256" -o "$checksum" || true
+    curl -fsSL &quot;$RELEASE_BASE_URL/$ARCHIVE_NAME&quot; -o &quot;$archive&quot;
+    curl -fsSL &quot;$RELEASE_BASE_URL/$ARCHIVE_NAME.sha256&quot; -o &quot;$checksum&quot; || true
   fi
 
-  if [[ -f "$checksum" ]]; then
+  if [[ -f &quot;$checksum&quot; ]]; then
     local expected
     local actual
-    expected="$(awk '{print $1}' "$checksum")"
-    actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
-    if [[ "$expected" != "$actual" ]]; then
-      echo "Checksum mismatch for $ARCHIVE_NAME" &gt;&amp;2
+    expected=&quot;$(awk &#39;{print $1}&#39; &quot;$checksum&quot;)&quot;
+    actual=&quot;$(shasum -a 256 &quot;$archive&quot; | awk &#39;{print $1}&#39;)&quot;
+    if [[ &quot;$expected&quot; != &quot;$actual&quot; ]]; then
+      echo &quot;Checksum mismatch for $ARCHIVE_NAME&quot; &gt;&amp;2
       exit 1
     fi
   fi
 
-  echo "$archive"
+  echo &quot;$archive&quot;
+}
+
+stop_existing_relay() {
+  local pids
+  launchctl bootout &quot;gui/$(id -u)&quot; &quot;$LAUNCH_AGENT_PLIST&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  pids=&quot;$(pgrep -f &quot;cmd\+cmd Relay\.app/Contents/MacOS/CmdCmdRelayApp&quot; || true)&quot;
+  if [[ -n &quot;$pids&quot; ]]; then
+    kill $pids &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+}
+
+prepare_pairing() {
+  if [[ ! -x &quot;$RELAY_EXECUTABLE&quot; ]]; then
+    echo &quot;Could not find relay executable.&quot; &gt;&amp;2
+    exit 1
+  fi
+
+  &quot;$RELAY_EXECUTABLE&quot; --prepare-pairing
 }
 
 install_launch_agent() {
-  local plist="$HOME/Library/LaunchAgents/app.cmdcmd.relay.plist"
-  mkdir -p "$(dirname "$plist")"
-  cat &gt; "$plist" &lt;&lt;PLIST
-&lt;?xml version="1.0" encoding="UTF-8"?&gt;
-&lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
-&lt;plist version="1.0"&gt;
+  mkdir -p &quot;$(dirname &quot;$LAUNCH_AGENT_PLIST&quot;)&quot; &quot;$LOG_DIR&quot;
+  cat &gt; &quot;$LAUNCH_AGENT_PLIST&quot; &lt;&lt;PLIST
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;!DOCTYPE plist PUBLIC &quot;-//Apple//DTD PLIST 1.0//EN&quot; &quot;http://www.apple.com/DTDs/PropertyList-1.0.dtd&quot;&gt;
+&lt;plist version=&quot;1.0&quot;&gt;
 &lt;dict&gt;
   &lt;key&gt;Label&lt;/key&gt;
-  &lt;string&gt;app.cmdcmd.relay&lt;/string&gt;
+  &lt;string&gt;$LAUNCH_AGENT_LABEL&lt;/string&gt;
   &lt;key&gt;ProgramArguments&lt;/key&gt;
   &lt;array&gt;
-    &lt;string&gt;/usr/bin/open&lt;/string&gt;
-    &lt;string&gt;-a&lt;/string&gt;
-    &lt;string&gt;$APP_PATH&lt;/string&gt;
+    &lt;string&gt;$RELAY_EXECUTABLE&lt;/string&gt;
+    &lt;string&gt;--serve&lt;/string&gt;
   &lt;/array&gt;
   &lt;key&gt;RunAtLoad&lt;/key&gt;
   &lt;true/&gt;
+  &lt;key&gt;KeepAlive&lt;/key&gt;
+  &lt;true/&gt;
+  &lt;key&gt;ProcessType&lt;/key&gt;
+  &lt;string&gt;Background&lt;/string&gt;
+  &lt;key&gt;StandardOutPath&lt;/key&gt;
+  &lt;string&gt;$OUT_LOG&lt;/string&gt;
+  &lt;key&gt;StandardErrorPath&lt;/key&gt;
+  &lt;string&gt;$ERR_LOG&lt;/string&gt;
 &lt;/dict&gt;
 &lt;/plist&gt;
 PLIST
-  launchctl unload "$plist" &gt;/dev/null 2&gt;&amp;1 || true
-  launchctl load "$plist"
+
+  launchctl bootout &quot;gui/$(id -u)&quot; &quot;$LAUNCH_AGENT_PLIST&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  launchctl bootstrap &quot;gui/$(id -u)&quot; &quot;$LAUNCH_AGENT_PLIST&quot;
+  launchctl kickstart -k &quot;gui/$(id -u)/$LAUNCH_AGENT_LABEL&quot; &gt;/dev/null 2&gt;&amp;1 || true
 }
 
-ARCHIVE="$(download_archive)"
-ditto -x -k "$ARCHIVE" "$TMP_DIR/unpacked"
+wait_for_relay() {
+  for _ in {1..40}; do
+    if curl -fsS &quot;http://127.0.0.1:8787/healthz&quot; &gt;/dev/null 2&gt;&amp;1; then
+      return 0
+    fi
+    sleep 0.25
+  done
 
-FOUND_APP="$(find "$TMP_DIR/unpacked" -maxdepth 2 -name "$APP_NAME" -type d | head -n 1)"
-if [[ -z "$FOUND_APP" ]]; then
-  echo "Could not find $APP_NAME in archive." &gt;&amp;2
+  echo &quot;Relay did not become reachable on http://127.0.0.1:8787/healthz.&quot; &gt;&amp;2
+  echo &quot;Recent relay log:&quot; &gt;&amp;2
+  if [[ -f &quot;$ERR_LOG&quot; ]]; then
+    tail -n 20 &quot;$ERR_LOG&quot; &gt;&amp;2 || true
+  else
+    echo &quot;No error log yet at $ERR_LOG&quot; &gt;&amp;2
+  fi
+  exit 1
+}
+
+request_accessibility() {
+  if &quot;$RELAY_EXECUTABLE&quot; --accessibility-status &gt;/dev/null 2&gt;&amp;1; then
+    echo &quot;Accessibility permission already granted.&quot;
+    return
+  fi
+
+  echo &quot;Requesting Accessibility permission for screenshot delivery...&quot;
+  &quot;$RELAY_EXECUTABLE&quot; --request-accessibility || true
+}
+
+print_pairing_qr() {
+  if [[ ! -x &quot;$RELAY_EXECUTABLE&quot; ]]; then
+    echo &quot;Could not find relay executable for pairing QR.&quot; &gt;&amp;2
+    exit 1
+  fi
+
+  &quot;$RELAY_EXECUTABLE&quot; --print-pairing-qr
+}
+
+ARCHIVE=&quot;$(download_archive)&quot;
+ditto -x -k &quot;$ARCHIVE&quot; &quot;$TMP_DIR/unpacked&quot;
+
+FOUND_APP=&quot;$(find &quot;$TMP_DIR/unpacked&quot; -maxdepth 2 -name &quot;$APP_NAME&quot; -type d | head -n 1)&quot;
+if [[ -z &quot;$FOUND_APP&quot; ]]; then
+  echo &quot;Could not find relay bundle in archive.&quot; &gt;&amp;2
   exit 1
 fi
 
-mkdir -p "$INSTALL_DIR"
-rm -rf "$APP_PATH"
-ditto "$FOUND_APP" "$APP_PATH"
+stop_existing_relay
 
-if codesign --verify --deep --strict "$APP_PATH" &gt;/dev/null 2&gt;&amp;1; then
-  echo "Signature verified."
+mkdir -p &quot;$INSTALL_DIR&quot;
+rm -rf &quot;$APP_PATH&quot;
+ditto &quot;$FOUND_APP&quot; &quot;$APP_PATH&quot;
+
+if codesign --verify --deep --strict &quot;$APP_PATH&quot; &gt;/dev/null 2&gt;&amp;1; then
+  echo &quot;Signature verified.&quot;
 else
-  echo "Installed app is not signed or signature verification failed." &gt;&amp;2
+  echo &quot;Installed bundle is not signed or signature verification failed.&quot; &gt;&amp;2
 fi
 
-if [[ "$START_AT_LOGIN" == "1" ]]; then
-  install_launch_agent
-fi
-
-if [[ "$NO_OPEN" == "0" ]]; then
-  open "$APP_PATH"
-fi
+prepare_pairing
+install_launch_agent
+wait_for_relay
+request_accessibility
+print_pairing_qr
 
 cat &lt;&lt;EOF
 Installed: $APP_PATH
+Background service: $LAUNCH_AGENT_LABEL
+Logs: $ERR_LOG
 
 Next:
-1. Grant Accessibility permission when macOS asks.
-2. Enable private-network mode in cmd+cmd Relay if pairing a physical iPhone.
-3. Scan the pairing code from the iPhone app.
+1. Open cmd+cmd on iPhone, go to Settings, and tap Scan Desktop QR.
+2. Scan the QR printed above.
+3. Send screenshots into the active Codex Desktop chat.
 EOF</pre>
                     <button class="copy" data-copy-pre>Copy</button>
                   </div>
@@ -232,7 +296,7 @@ EOF</pre>
             <li class="step">
               <span class="n">02</span>
               <div class="body">
-                <p>Open <b>cmd+cmd&nbsp;Relay</b>. On first launch it generates a per-user bearer token, starts the local relay on <span class="hl">127.0.0.1</span>, and shows a pairing code.</p>
+                <p>The installer keeps the relay running in the background with a per-user bearer token and a private-network endpoint for this Mac.</p>
               </div>
             </li>
             <li class="step">
@@ -251,7 +315,7 @@ EOF</pre>
           <div class="col-l-sticky">
             <span class="idx">[ 02 ]</span>
             <h2>Phone &middot; Pair &amp; send</h2>
-            <p class="note">Pair once by scanning the code. Then send from anywhere on your phone.</p>
+            <p class="note">Open the iOS app, scan the QR shown in Terminal, then send from anywhere on your phone.</p>
           </div>
         </div>
         <div class="col-r">
@@ -262,7 +326,7 @@ EOF</pre>
             </li>
             <li class="step">
               <span class="n">02</span>
-              <div class="body"><p>Scan the pairing code from the Mac app. This fills the endpoint and bearer token for you &mdash; no typing.</p></div>
+              <div class="body"><p>Open Settings in the iOS app, tap <b>Scan Desktop QR</b>, and scan the QR printed by the installer.</p></div>
             </li>
             <li class="step">
               <span class="n">03</span>
@@ -270,15 +334,15 @@ EOF</pre>
             </li>
           </ol>
 
-          <span class="cap-lbl">Manual setup &middot; skip pairing</span>
+          <span class="cap-lbl">Manual setup &middot; debugging only</span>
           <dl class="kv">
             <div class="row">
               <dt class="k">Endpoint</dt>
-              <dd class="v"><span class="mono">http://127.0.0.1:8787/v1/captures</span><span class="small">Set by hand for the iOS Simulator. For a physical phone use a trusted private URL &mdash; Tailscale, VPN, or a tunnel.</span></dd>
+              <dd class="v"><span class="mono">http://127.0.0.1:8787/v1/captures</span><span class="small">Set by hand for the iOS Simulator. Physical phones should use the installer QR so the private-network address and token match this Mac.</span></dd>
             </div>
             <div class="row">
               <dt class="k">Bearer token</dt>
-              <dd class="v"><span class="mono">CMDCMD_RELAY_TOKEN</span><span class="small">The value shown by the Mac relay app.</span></dd>
+              <dd class="v"><span class="mono">CMDCMD_RELAY_TOKEN</span><span class="small">The value encoded in the Terminal pairing QR.</span></dd>
             </div>
           </dl>
         </div>

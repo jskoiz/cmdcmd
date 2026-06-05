@@ -84,7 +84,7 @@ struct CaptureView: View {
             if feedbackPhase == nil, !statusText.isEmpty {
                 Label(statusText, systemImage: "sparkle")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, -2)
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -123,9 +123,9 @@ struct CaptureView: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(.secondarySystemBackground).opacity(0.82),
-                                Color(.systemBackground).opacity(0.72),
-                                Color(.systemGray5).opacity(0.62)
+                                Theme.previewWellTop,
+                                Theme.previewWellMiddle,
+                                Theme.previewWellBottom
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -133,7 +133,7 @@ struct CaptureView: View {
                     )
                     .overlay {
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .strokeBorder(Theme.brand.opacity(0.08), lineWidth: 1)
+                            .strokeBorder(Theme.brand.opacity(0.18), lineWidth: 1)
                     }
 
                 ImagePlaceholder()
