@@ -3,79 +3,330 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>cmd+cmd</title>
+    <title>cmd+cmd — AppShots, extended to your phone</title>
     <meta
       name="description"
-      content="Private iPhone screenshots into the frontmost Codex Desktop chat."
+      content="A small iPhone companion that pushes a screenshot — with on-device OCR — straight into your active Codex Desktop composer, over a private local relay."
     />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" href="./assets/icon.png" />
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://cmd.avmil.xyz/" />
+    <meta property="og:title" content="cmd+cmd — AppShots, extended to your phone" />
+    <meta property="og:description" content="iPhone screenshots, with on-device OCR, into your active Codex Desktop composer. Private local relay." />
+    <meta property="og:image" content="https://cmd.avmil.xyz/assets/icon.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="cmd+cmd — AppShots, extended to your phone" />
+    <meta name="twitter:description" content="iPhone screenshots, with on-device OCR, into your active Codex Desktop composer." />
+    <meta name="twitter:image" content="https://cmd.avmil.xyz/assets/icon.png" />
+
+    <script>document.documentElement.classList.add("js");</script>
+    <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/IBMPlexMono-600.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/IBMPlexMono-400.woff2" crossorigin />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <header class="nav" aria-label="Primary navigation">
-      <a class="brand" href="/" aria-label="cmd+cmd home">
-        <img src="./assets/cmdcmd-logo.png" alt="" />
-        <span>cmd+cmd</span>
-      </a>
-      <nav>
-        <a href="#install">Install</a>
-        <a href="#security">Security</a>
-        <a href="https://github.com/jskoiz/CodexShot">GitHub</a>
-      </nav>
-    </header>
+    <main class="wrap">
+      <!-- HEADER -->
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="cmd+cmd">
+          <img src="./assets/logo.png" alt="cmd+cmd" />
+        </a>
+        <div class="status" aria-label="Local, private relay">
+          <span class="dot" aria-hidden="true"></span>
+          <span>LOCAL&nbsp;·&nbsp;PRIVATE</span>
+        </div>
+      </header>
 
-    <main>
-      <section class="hero" aria-labelledby="hero-title">
-        <h1 id="hero-title">Phone screenshots. Frontmost Codex chat.</h1>
-        <p>
-          A private Mac relay and iPhone shortcut for sending screenshots into
-          the Codex Desktop composer.
-        </p>
-        <div class="commands" aria-label="Install commands">
-          <pre><code>curl -fsSL https://cmd.avmil.xyz/install.sh | bash</code></pre>
-          <pre><code>open "cmd+cmd Relay.app"  # scan pairing code</code></pre>
+      <!-- HERO -->
+      <section class="hero reveal">
+        <span class="tick tl" aria-hidden="true"></span>
+        <span class="tick tr" aria-hidden="true"></span>
+        <span class="tick bl" aria-hidden="true"></span>
+        <span class="tick br" aria-hidden="true"></span>
+        <span class="eyebrow">[ 00 ]&nbsp;&nbsp;PHONE&nbsp;→&nbsp;CODEX&nbsp;DESKTOP</span>
+        <h1>AppShots extended to your phone.</h1>
+        <div class="cta-row">
+          <a class="cta" href="#install">GET&nbsp;CMD+CMD <span class="arr">→</span></a>
         </div>
       </section>
 
-      <section id="install" class="section">
-        <div>
-          <h2>Install Mac</h2>
-          <p>Install the signed relay app. No Xcode. No npm. No sudo.</p>
+      <!-- 01 — HOST -->
+      <section class="block reveal" id="install">
+        <div class="col-l">
+          <div class="col-l-sticky">
+            <span class="idx">[ 01 ]</span>
+            <h2>Host &middot; Mac relay</h2>
+            <p class="note">Runs on the Mac with Codex Desktop. Receives the capture and pastes it in. No Xcode, no npm.</p>
+          </div>
         </div>
-        <pre><code>./scripts/install-macos.sh --start-at-login</code></pre>
+        <div class="col-r">
+          <ol class="steps">
+            <li class="step">
+              <span class="n">01</span>
+              <div class="body">
+                <p>Install the signed <b>cmd+cmd&nbsp;Relay</b> app with one command.</p>
+                <span class="cap-lbl">Terminal</span>
+                <div class="code">
+                  <pre><span class="p">$</span> curl -fsSL https://cmd.avmil.xyz/install.sh | bash<span class="cursor" aria-hidden="true"></span></pre>
+                  <button class="copy" data-copy="curl -fsSL https://cmd.avmil.xyz/install.sh | bash">Copy</button>
+                </div>
+                <p class="aside">To launch it automatically each login, end the command with <span class="hl">bash -s -- --start-at-login</span>.</p>
+                <p class="aside">Rather not pipe a script straight into <span class="hl">bash</span>? Download and open it first:</p>
+                <div class="code">
+                  <pre><span class="p">$</span> curl -fsSL https://cmd.avmil.xyz/install.sh -o install.sh
+<span class="p">$</span> less install.sh</pre>
+                  <button class="copy" data-copy="curl -fsSL https://cmd.avmil.xyz/install.sh -o install.sh&#10;less install.sh">Copy</button>
+                </div>
+                <p class="aside">Looks good? Run it with <span class="hl">bash install.sh</span>.</p>
+                <details class="disclosure">
+                  <summary>Inspect the install script</summary>
+                  <div class="code code-scroll">
+                    <pre>#!/usr/bin/env bash
+set -euo pipefail
+
+APP_NAME="cmd+cmd Relay.app"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/Applications}"
+APP_PATH="$INSTALL_DIR/$APP_NAME"
+RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://cmd.avmil.xyz/dl}"
+ARCHIVE_NAME="CmdCmdRelay-macOS.zip"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." &amp;&amp; pwd)"
+LOCAL_ARCHIVE="$ROOT_DIR/dist/cmdcmd-relay/$ARCHIVE_NAME"
+TMP_DIR="$(mktemp -d)"
+
+cleanup() {
+  rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
+
+usage() {
+  cat &lt;&lt;'USAGE'
+Usage: scripts/install-macos.sh [--start-at-login] [--no-open]
+
+Installs cmd+cmd Relay.app into ~/Applications by default.
+
+Environment:
+  INSTALL_DIR                 Override destination app directory.
+  CMDCMD_RELAY_RELEASE_URL    Override release download base URL.
+USAGE
+}
+
+START_AT_LOGIN=0
+NO_OPEN=0
+for arg in "$@"; do
+  case "$arg" in
+    --start-at-login)
+      START_AT_LOGIN=1
+      ;;
+    --no-open)
+      NO_OPEN=1
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $arg" &gt;&amp;2
+      usage
+      exit 64
+      ;;
+  esac
+done
+
+download_archive() {
+  local archive="$TMP_DIR/$ARCHIVE_NAME"
+  local checksum="$TMP_DIR/$ARCHIVE_NAME.sha256"
+
+  if [[ -f "$LOCAL_ARCHIVE" ]]; then
+    cp "$LOCAL_ARCHIVE" "$archive"
+    if [[ -f "$LOCAL_ARCHIVE.sha256" ]]; then
+      cp "$LOCAL_ARCHIVE.sha256" "$checksum"
+    fi
+  else
+    curl -fsSL "$RELEASE_BASE_URL/$ARCHIVE_NAME" -o "$archive"
+    curl -fsSL "$RELEASE_BASE_URL/$ARCHIVE_NAME.sha256" -o "$checksum" || true
+  fi
+
+  if [[ -f "$checksum" ]]; then
+    local expected
+    local actual
+    expected="$(awk '{print $1}' "$checksum")"
+    actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+    if [[ "$expected" != "$actual" ]]; then
+      echo "Checksum mismatch for $ARCHIVE_NAME" &gt;&amp;2
+      exit 1
+    fi
+  fi
+
+  echo "$archive"
+}
+
+install_launch_agent() {
+  local plist="$HOME/Library/LaunchAgents/app.cmdcmd.relay.plist"
+  mkdir -p "$(dirname "$plist")"
+  cat &gt; "$plist" &lt;&lt;PLIST
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
+&lt;plist version="1.0"&gt;
+&lt;dict&gt;
+  &lt;key&gt;Label&lt;/key&gt;
+  &lt;string&gt;app.cmdcmd.relay&lt;/string&gt;
+  &lt;key&gt;ProgramArguments&lt;/key&gt;
+  &lt;array&gt;
+    &lt;string&gt;/usr/bin/open&lt;/string&gt;
+    &lt;string&gt;-a&lt;/string&gt;
+    &lt;string&gt;$APP_PATH&lt;/string&gt;
+  &lt;/array&gt;
+  &lt;key&gt;RunAtLoad&lt;/key&gt;
+  &lt;true/&gt;
+&lt;/dict&gt;
+&lt;/plist&gt;
+PLIST
+  launchctl unload "$plist" &gt;/dev/null 2&gt;&amp;1 || true
+  launchctl load "$plist"
+}
+
+ARCHIVE="$(download_archive)"
+ditto -x -k "$ARCHIVE" "$TMP_DIR/unpacked"
+
+FOUND_APP="$(find "$TMP_DIR/unpacked" -maxdepth 2 -name "$APP_NAME" -type d | head -n 1)"
+if [[ -z "$FOUND_APP" ]]; then
+  echo "Could not find $APP_NAME in archive." &gt;&amp;2
+  exit 1
+fi
+
+mkdir -p "$INSTALL_DIR"
+rm -rf "$APP_PATH"
+ditto "$FOUND_APP" "$APP_PATH"
+
+if codesign --verify --deep --strict "$APP_PATH" &gt;/dev/null 2&gt;&amp;1; then
+  echo "Signature verified."
+else
+  echo "Installed app is not signed or signature verification failed." &gt;&amp;2
+fi
+
+if [[ "$START_AT_LOGIN" == "1" ]]; then
+  install_launch_agent
+fi
+
+if [[ "$NO_OPEN" == "0" ]]; then
+  open "$APP_PATH"
+fi
+
+cat &lt;&lt;EOF
+Installed: $APP_PATH
+
+Next:
+1. Grant Accessibility permission when macOS asks.
+2. Enable private-network mode in cmd+cmd Relay if pairing a physical iPhone.
+3. Scan the pairing code from the iPhone app.
+EOF</pre>
+                    <button class="copy" data-copy-pre>Copy</button>
+                  </div>
+                </details>
+              </div>
+            </li>
+            <li class="step">
+              <span class="n">02</span>
+              <div class="body">
+                <p>Open <b>cmd+cmd&nbsp;Relay</b>. On first launch it generates a per-user bearer token, starts the local relay on <span class="hl">127.0.0.1</span>, and shows a pairing code.</p>
+              </div>
+            </li>
+            <li class="step">
+              <span class="n">03</span>
+              <div class="body">
+                <p>Grant macOS <b>Accessibility</b> permission once, so the relay can paste into the visible Codex&nbsp;Desktop composer.</p>
+              </div>
+            </li>
+          </ol>
+        </div>
       </section>
 
-      <section class="section">
-        <div>
-          <h2>Pair iPhone</h2>
-          <p>Open cmd+cmd Relay, enable private-network mode, scan the code.</p>
+      <!-- 02 — PHONE -->
+      <section class="block reveal">
+        <div class="col-l">
+          <div class="col-l-sticky">
+            <span class="idx">[ 02 ]</span>
+            <h2>Phone &middot; Pair &amp; send</h2>
+            <p class="note">Pair once by scanning the code. Then send from anywhere on your phone.</p>
+          </div>
         </div>
-        <ol>
-          <li>Install cmd+cmd on iPhone.</li>
-          <li>Scan the pairing code.</li>
-          <li>Run the shortcut or share a screenshot.</li>
-        </ol>
+        <div class="col-r">
+          <ol class="steps">
+            <li class="step">
+              <span class="n">01</span>
+              <div class="body"><p>Install <b>cmd+cmd</b> on iPhone from TestFlight or the App&nbsp;Store.</p></div>
+            </li>
+            <li class="step">
+              <span class="n">02</span>
+              <div class="body"><p>Scan the pairing code from the Mac app. This fills the endpoint and bearer token for you &mdash; no typing.</p></div>
+            </li>
+            <li class="step">
+              <span class="n">03</span>
+              <div class="body"><p>Send a screenshot from the <b>Share sheet</b>, a <b>Shortcut</b>, or <b>Back&nbsp;Tap</b>. OCR runs on-device, then it lands in the frontmost Codex chat.</p></div>
+            </li>
+          </ol>
+
+          <span class="cap-lbl">Manual setup &middot; skip pairing</span>
+          <dl class="kv">
+            <div class="row">
+              <dt class="k">Endpoint</dt>
+              <dd class="v"><span class="mono">http://127.0.0.1:8787/v1/captures</span><span class="small">Set by hand for the iOS Simulator. For a physical phone use a trusted private URL &mdash; Tailscale, VPN, or a tunnel.</span></dd>
+            </div>
+            <div class="row">
+              <dt class="k">Bearer token</dt>
+              <dd class="v"><span class="mono">CMDCMD_RELAY_TOKEN</span><span class="small">The value shown by the Mac relay app.</span></dd>
+            </div>
+          </dl>
+        </div>
       </section>
 
-      <section id="security" class="section">
-        <div>
-          <h2>Security Model</h2>
-          <p>Local relay. Per-user bearer token. Codex credentials untouched.</p>
+      <!-- FOOTER -->
+      <footer>
+        <span class="tick bl" aria-hidden="true"></span>
+        <span class="tick br" aria-hidden="true"></span>
+        <span class="foot-note">NO&nbsp;CLOUD&nbsp;·&nbsp;LOCAL&nbsp;RELAY&nbsp;·&nbsp;ON-DEVICE&nbsp;OCR</span>
+        <div class="links">
+          <a href="https://x.com/jskoiz" target="_blank" rel="noopener">Made&nbsp;by&nbsp;@jskoiz</a>
         </div>
-        <ul>
-          <li>No Codex Desktop patching.</li>
-          <li>No public endpoint by default.</li>
-          <li>Local screenshot storage only.</li>
-        </ul>
-      </section>
-
-      <section class="section">
-        <div>
-          <h2>Ship Notes</h2>
-          <p>Build, sign, notarize, publish the zip, then point install.sh at it.</p>
-        </div>
-        <pre><code>DEVELOPER_ID_APPLICATION="Developer ID Application: ..." ./scripts/package_macos.sh</code></pre>
-      </section>
+      </footer>
     </main>
+
+    <script>
+      document.querySelectorAll(".copy").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var text;
+          if (btn.hasAttribute("data-copy-pre")) {
+            var pre = btn.parentNode.querySelector("pre");
+            text = pre ? pre.textContent : "";
+          } else {
+            text = btn.getAttribute("data-copy") || "";
+          }
+          navigator.clipboard.writeText(text).then(function () {
+            var prev = btn.textContent;
+            btn.textContent = "Copied";
+            btn.classList.add("done");
+            setTimeout(function () {
+              btn.textContent = prev;
+              btn.classList.remove("done");
+            }, 1400);
+          }).catch(function () {});
+        });
+      });
+
+      var reveals = document.querySelectorAll(".reveal");
+      if ("IntersectionObserver" in window) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+          });
+        }, { rootMargin: "0px 0px -8% 0px", threshold: 0.06 });
+        reveals.forEach(function (el) { io.observe(el); });
+      } else {
+        reveals.forEach(function (el) { el.classList.add("in"); });
+      }
+    </script>
   </body>
 </html>
-
