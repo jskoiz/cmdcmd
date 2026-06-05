@@ -293,7 +293,12 @@ private struct DesktopOnboardingPrompt: View {
             .buttonStyle(.plain)
             .foregroundStyle(.white)
             .background(Theme.sendGradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(Theme.glossOverlay.clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous)))
+            .overlay {
+                Theme.glossOverlay
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .allowsHitTesting(false)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }
 }
