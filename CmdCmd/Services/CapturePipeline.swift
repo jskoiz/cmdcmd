@@ -108,7 +108,7 @@ enum CapturePipeline {
             )
             let relayClient = RelayClient(settings: settings)
             let sendResult = try await relayClient.send(payload)
-            record.status = .sent
+            record.status = .sending
             record.statusMessage = queuedMessage()
             CaptureRepository.upsert(record)
             capturePipelineLogger.info(
@@ -116,12 +116,22 @@ enum CapturePipeline {
             )
             do {
                 if let deliveryStatus = try await relayClient.waitForDeliveryStatus(after: sendResult) {
-                    applyDeliveryStatus(deliveryStatus, to: &record, fallbackQueuedMessage: queuedMessage())
+                    if deliveryStatus.isTerminal {
+                        applyDeliveryStatus(deliveryStatus, to: &record, fallbackQueuedMessage: queuedMessage())
+                    } else {
+                        record.status = .failed
+                        record.statusMessage = unconfirmedDeliveryMessage()
+                    }
+                } else {
+                    record.status = .failed
+                    record.statusMessage = unconfirmedDeliveryMessage()
                 }
             } catch {
                 capturePipelineLogger.error(
                     "delivery status polling failed captureId=\(record.id.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
                 )
+                record.status = .failed
+                record.statusMessage = unconfirmedDeliveryMessage()
             }
         } catch RelayClientError.missingEndpoint {
             record.status = .needsEndpoint
@@ -147,7 +157,11 @@ enum CapturePipeline {
     }
 
     private static func queuedMessage() -> String {
-        "Queued"
+        "Queued for the frontmost Codex chat"
+    }
+
+    private static func unconfirmedDeliveryMessage() -> String {
+        "Relay accepted the capture, but desktop delivery was not confirmed. Check Codex Desktop and the Mac relay, then try again."
     }
 
     private static func userFacingFailureMessage(for error: Error, settings: RelaySettings) -> String {
@@ -197,7 +211,7 @@ enum CapturePipeline {
             record.status = .failed
             record.statusMessage = deliveryStatus.message
         default:
-            record.status = .sent
+            record.status = .sending
             record.statusMessage = deliveryStatus.message.isEmpty ? fallbackQueuedMessage : deliveryStatus.message
         }
     }

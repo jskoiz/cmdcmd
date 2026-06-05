@@ -32,6 +32,12 @@ enum CaptureRepository {
             #endif
             return settings
         } catch {
+            #if DEBUG
+            if let bootstrapSettings = debugBootstrapSettingsFromEnvironment() {
+                saveSettings(bootstrapSettings)
+                return bootstrapSettings
+            }
+            #endif
             return .empty
         }
     }
