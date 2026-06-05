@@ -2,7 +2,6 @@ import SwiftUI
 
 struct AppNavigationMenu: View {
     @Binding var selection: AppTab
-    var settingsNeedsAttention: Bool
 
     var body: some View {
         Menu {
@@ -16,23 +15,14 @@ struct AppNavigationMenu: View {
                 }
             }
         } label: {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.primary)
-                    .frame(width: 40, height: 40)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay { Circle().strokeBorder(Theme.brand.opacity(0.10), lineWidth: 1) }
-
-                if settingsNeedsAttention {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 8, height: 8)
-                        .offset(x: -2, y: 2)
-                }
-            }
+            Image(systemName: "ellipsis")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.primary.opacity(0.88))
+                .frame(width: 36, height: 36)
+                .background(Color(.secondarySystemBackground).opacity(0.46), in: Circle())
+                .overlay { Circle().strokeBorder(Theme.brand.opacity(0.06), lineWidth: 1) }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(settingsNeedsAttention ? "Options, settings needs attention" : "Options")
+        .accessibilityLabel("Options")
     }
 }
