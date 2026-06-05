@@ -27,7 +27,7 @@ export class DesktopAppshotClient {
     if (appshot.openImageInViewer) {
       await this.runCommand(
         this.openCommand,
-        ["-b", appshot.viewerBundle, stored.imagePath],
+        ["-g", "-j", "-b", appshot.viewerBundle, stored.imagePath],
         { timeoutMs: appshot.openTimeoutMs }
       );
       await delay(appshot.openDelayMs);

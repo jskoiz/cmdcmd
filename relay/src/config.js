@@ -60,7 +60,7 @@ export function loadConfig(env = process.env, options = {}) {
     appshot: {
       openImageInViewer: parseBooleanDefault(
         env.CODEXSHOT_APPSHOT_OPEN_VIEWER,
-        true
+        false
       ),
       viewerBundle:
         trim(env.CODEXSHOT_APPSHOT_VIEWER_BUNDLE) || "com.apple.Preview",

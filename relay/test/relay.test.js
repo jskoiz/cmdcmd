@@ -75,7 +75,7 @@ test("loadConfig includes Codex Desktop paste defaults", () => {
     { cwd: process.cwd() }
   );
 
-  assert.equal(config.appshot.openImageInViewer, true);
+  assert.equal(config.appshot.openImageInViewer, false);
   assert.equal(config.appshot.viewerBundle, "com.apple.Preview");
   assert.equal(config.appshot.closeViewerWindow, true);
   assert.equal(config.appshot.codexBundle, "com.openai.codex");
@@ -110,7 +110,7 @@ test("loadConfig rejects obsolete Appshot helper settings", () => {
   );
 });
 
-test("DesktopAppshotClient opens the screenshot and pastes it into Codex", async () => {
+test("DesktopAppshotClient opens the screenshot hidden when viewer is enabled", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "codexshot-appshot-"));
   const imagePath = path.join(tempDir, "image.png");
   await fs.writeFile(imagePath, Buffer.from(samplePayload.imageBase64, "base64"));
@@ -156,10 +156,16 @@ test("DesktopAppshotClient opens the screenshot and pastes it into Codex", async
     "Context:\nPlease review the screenshot.\n\nOCR text:\nOCR from screenshot\n"
   );
   assert.deepEqual(commands.map(({ command, args }) => [command, args[0]]), [
-    ["/usr/bin/open", "-b"],
+    ["/usr/bin/open", "-g"],
     ["/tmp/codexshot-desktop-helper", "--image-path"]
   ]);
-  assert.equal(commands[0].args[1], "com.apple.Preview");
+  assert.deepEqual(commands[0].args, [
+    "-g",
+    "-j",
+    "-b",
+    "com.apple.Preview",
+    imagePath
+  ]);
   assert.deepEqual(commands[1].args, [
     "--image-path",
     imagePath,
@@ -175,6 +181,42 @@ test("DesktopAppshotClient opens the screenshot and pastes it into Codex", async
     "com.apple.Preview",
     "--close-viewer"
   ]);
+});
+
+test("DesktopAppshotClient pastes without opening Preview by default", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "codexshot-appshot-"));
+  const imagePath = path.join(tempDir, "image.png");
+  await fs.writeFile(imagePath, Buffer.from(samplePayload.imageBase64, "base64"));
+  const commands = [];
+
+  const config = loadConfig(
+    {
+      CODEXSHOT_RELAY_TOKEN: "secret",
+      CODEXSHOT_INBOX_DIR: tempDir,
+      CODEXSHOT_APPSHOT_CODEX_BUNDLE: "com.openai.codex",
+      CODEXSHOT_APPSHOT_PASTE_DELAY_MS: "1"
+    },
+    { cwd: tempDir }
+  );
+  const client = new DesktopAppshotClient(config, {
+    logger: { info() {}, error() {} },
+    desktopHelperCommand: "/tmp/codexshot-desktop-helper",
+    runCommand: async (command, args) => {
+      commands.push({ command, args });
+      return { stdout: "", stderr: "" };
+    }
+  });
+
+  await client.deliver(samplePayload, {
+    imagePath,
+    metadataPath: path.join(tempDir, "metadata.json")
+  });
+
+  assert.deepEqual(commands.map(({ command }) => command), [
+    "/tmp/codexshot-desktop-helper"
+  ]);
+  assert.equal(commands[0].args.includes("--viewer-bundle"), false);
+  assert.equal(commands[0].args.includes("--close-viewer"), false);
 });
 
 test("buildDesktopHelperArgs configures frontmost composer paste", () => {

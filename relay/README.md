@@ -1,9 +1,9 @@
 # cmd+cmd Relay
 
 This private relay receives the JSON payload posted by the cmd+cmd iOS app,
-saves the screenshot into a local inbox, opens it on the Mac, and uses the
-relay's native desktop helper to paste the image plus OCR/context text into the
-visible Codex composer.
+saves the screenshot into a local inbox, and uses the relay's native desktop
+helper to paste the image plus OCR/context text into the visible Codex
+composer.
 The relay has one delivery path: Codex Desktop attachment.
 
 Remote connections are useful for controlling a trusted Codex host from another
@@ -23,10 +23,11 @@ Edit `.env`:
 - Replace `CODEXSHOT_RELAY_TOKEN` with a long random value.
 - Keep `CODEXSHOT_HOST=127.0.0.1` for simulator-only testing, or bind to a
   trusted private interface for a physical phone.
-- Keep `CODEXSHOT_APPSHOT_OPEN_VIEWER=true` when the screenshot should open in
-  Preview before the relay helper attaches it to Codex Desktop.
-- Keep `CODEXSHOT_APPSHOT_CLOSE_VIEWER=true` when the Preview thumbnail should
-  close automatically after the attach.
+- Keep `CODEXSHOT_APPSHOT_OPEN_VIEWER=false` for normal use so the screenshot
+  never opens in Preview.
+- Set `CODEXSHOT_APPSHOT_OPEN_VIEWER=true` only when debugging viewer behavior.
+  The relay opens Preview hidden/in the background, then closes the matching
+  screenshot window and quits Preview if no other windows remain.
 
 Start the relay:
 
@@ -53,26 +54,27 @@ CODEXSHOT_RELAY_URL=http://127.0.0.1:8787/v1/captures npm run smoke:post
 
 The script posts `fixtures/sample-payload.json` with the bearer token from
 `.env` and prints the relay response. This exercises the real Codex Desktop
-paste path and may bring Preview and Codex Desktop to the foreground.
+paste path and may bring Codex Desktop to the foreground.
 
 ## Codex Desktop Delivery
 
 Default settings:
 
 ```text
-CODEXSHOT_APPSHOT_OPEN_VIEWER=true
+CODEXSHOT_APPSHOT_OPEN_VIEWER=false
 CODEXSHOT_APPSHOT_VIEWER_BUNDLE=com.apple.Preview
 CODEXSHOT_APPSHOT_CLOSE_VIEWER=true
 CODEXSHOT_APPSHOT_CODEX_BUNDLE=com.openai.codex
 ```
 
-When a capture arrives, the relay saves the image, opens it in the configured
-Mac viewer, waits briefly for that window to become available, then runs the
-native desktop helper. The helper copies the image to the pasteboard, activates
-Codex Desktop, focuses the frontmost visible composer, pastes the image, then
-pastes a text block containing the phone context and OCR text when present. If
-viewer cleanup is enabled, it closes the matching Preview window after the
-attach. The capture response is an immediate
+When a capture arrives, the relay saves the image and runs the native desktop
+helper. The helper copies the image to the pasteboard, activates Codex Desktop,
+focuses the frontmost visible composer, pastes the image, then pastes a text
+block containing the phone context and OCR text when present. If the optional
+viewer path is enabled, the relay opens Preview hidden/in the background before
+the paste; if viewer cleanup is enabled, it closes the matching Preview window
+after the attach and quits Preview when no other windows remain. The capture
+response is an immediate
 `202 Accepted` receipt with the stored image path, metadata sidecar path, and
 `statusUrl`.
 

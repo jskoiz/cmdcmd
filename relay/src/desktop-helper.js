@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-export const DESKTOP_HELPER_VERSION = "2026-06-05.4";
+export const DESKTOP_HELPER_VERSION = "2026-06-05.5";
 
 export async function ensureDesktopHelper(options = {}) {
   const cacheDir =
@@ -330,6 +330,19 @@ func closeButton(for window: AXUIElement) -> AXUIElement? {
     return (closeButtonRef as! AXUIElement)
 }
 
+func windows(for appElement: AXUIElement) -> [AXUIElement] {
+    var windowsRef: CFTypeRef?
+    let result = AXUIElementCopyAttributeValue(
+        appElement,
+        kAXWindowsAttribute as CFString,
+        &windowsRef
+    )
+    guard result == .success, let windows = windowsRef as? [AXUIElement] else {
+        return []
+    }
+    return windows
+}
+
 func focusViewerWindow(appElement: AXUIElement, window: AXUIElement) {
     AXUIElementSetAttributeValue(
         appElement,
@@ -344,6 +357,31 @@ func focusViewerWindow(appElement: AXUIElement, window: AXUIElement) {
     AXUIElementPerformAction(window, kAXRaiseAction as CFString)
 }
 
+func pressCommandW() {
+    let source = eventSource()
+    postKey(source, key: 55, down: true, flags: .maskCommand)
+    postKey(source, key: 13, down: true, flags: .maskCommand)
+    postKey(source, key: 13, down: false, flags: .maskCommand)
+    postKey(source, key: 55, down: false)
+}
+
+func quitViewerIfEmpty(_ viewer: NSRunningApplication, appElement: AXUIElement) {
+    usleep(250_000)
+    guard windows(for: appElement).isEmpty else {
+        return
+    }
+
+    viewer.terminate()
+    let deadline = Date().addingTimeInterval(1.0)
+    while !viewer.isTerminated && Date() < deadline {
+        usleep(50_000)
+    }
+
+    if !viewer.isTerminated {
+        viewer.forceTerminate()
+    }
+}
+
 func closeViewerWindow(config: Config, codex: NSRunningApplication) {
     guard
         config.closeViewer,
@@ -354,13 +392,10 @@ func closeViewerWindow(config: Config, codex: NSRunningApplication) {
     }
 
     let viewerElement = AXUIElementCreateApplication(viewer.processIdentifier)
-    var windowsRef: CFTypeRef?
-    let windowsResult = AXUIElementCopyAttributeValue(
-        viewerElement,
-        kAXWindowsAttribute as CFString,
-        &windowsRef
-    )
-    guard windowsResult == .success, let windows = windowsRef as? [AXUIElement], !windows.isEmpty else {
+    let windows = windows(for: viewerElement)
+    guard !windows.isEmpty else {
+        quitViewerIfEmpty(viewer, appElement: viewerElement)
+        _ = codex.activate(options: [.activateIgnoringOtherApps])
         return
     }
 
@@ -373,23 +408,21 @@ func closeViewerWindow(config: Config, codex: NSRunningApplication) {
             (!fileStem.isEmpty && windowTitle.contains(fileStem))
     } ?? windows[0]
 
-    focusViewerWindow(appElement: viewerElement, window: targetWindow)
-    _ = viewer.activate(options: [.activateIgnoringOtherApps])
-    usleep(100_000)
+    var closedTarget = false
 
     if let closeButton = closeButton(for: targetWindow),
        AXUIElementPerformAction(closeButton, kAXPressAction as CFString) == .success {
-        usleep(150_000)
-        _ = codex.activate(options: [.activateIgnoringOtherApps])
-        return
+        closedTarget = true
     }
 
-    let source = eventSource()
-    postKey(source, key: 55, down: true, flags: .maskCommand)
-    postKey(source, key: 13, down: true, flags: .maskCommand)
-    postKey(source, key: 13, down: false, flags: .maskCommand)
-    postKey(source, key: 55, down: false)
-    usleep(100_000)
+    if !closedTarget {
+        focusViewerWindow(appElement: viewerElement, window: targetWindow)
+        _ = viewer.activate(options: [.activateIgnoringOtherApps])
+        usleep(100_000)
+        pressCommandW()
+    }
+
+    quitViewerIfEmpty(viewer, appElement: viewerElement)
     _ = codex.activate(options: [.activateIgnoringOtherApps])
 }
 
