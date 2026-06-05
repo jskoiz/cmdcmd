@@ -95,7 +95,7 @@ test("deliverPayload validates, stores, and queues Codex Desktop delivery", asyn
 test("loadConfig includes Codex Desktop paste defaults", () => {
   const config = loadConfig(
     {
-      CODEXSHOT_RELAY_TOKEN: "secret"
+      CMDCMD_RELAY_TOKEN: "secret"
     },
     { cwd: process.cwd() }
   );
@@ -112,12 +112,12 @@ test("loadConfig rejects obsolete relay delivery settings", () => {
     () =>
       loadConfig(
         {
-          CODEXSHOT_RELAY_TOKEN: "secret",
-          CODEXSHOT_DELIVERY_MODE: "app-server"
+          CMDCMD_RELAY_TOKEN: "secret",
+          CMDCMD_DELIVERY_MODE: "app-server"
         },
         { cwd: process.cwd() }
       ),
-    /CODEXSHOT_DELIVERY_MODE is no longer supported/
+    /CMDCMD_DELIVERY_MODE is no longer supported/
   );
 });
 
@@ -126,37 +126,37 @@ test("loadConfig rejects obsolete Appshot helper settings", () => {
     () =>
       loadConfig(
         {
-          CODEXSHOT_RELAY_TOKEN: "secret",
-          CODEXSHOT_APPSHOT_HELPER: "/tmp/helper"
+          CMDCMD_RELAY_TOKEN: "secret",
+          CMDCMD_APPSHOT_HELPER: "/tmp/helper"
         },
         { cwd: process.cwd() }
       ),
-    /CODEXSHOT_APPSHOT_HELPER is no longer supported/
+    /CMDCMD_APPSHOT_HELPER is no longer supported/
   );
 });
 
 test("DesktopAppshotClient opens the screenshot and pastes it into Codex", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "codexshot-appshot-"));
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmdcmd-appshot-"));
   const imagePath = path.join(tempDir, "image.png");
   await fs.writeFile(imagePath, Buffer.from(samplePayload.imageBase64, "base64"));
   const commands = [];
 
   const config = loadConfig(
     {
-      CODEXSHOT_RELAY_TOKEN: "secret",
-      CODEXSHOT_INBOX_DIR: tempDir,
-      CODEXSHOT_APPSHOT_OPEN_VIEWER: "true",
-      CODEXSHOT_APPSHOT_VIEWER_BUNDLE: "com.apple.Preview",
-      CODEXSHOT_APPSHOT_CODEX_BUNDLE: "com.openai.codex",
-      CODEXSHOT_APPSHOT_OPEN_DELAY_MS: "1",
-      CODEXSHOT_APPSHOT_PASTE_DELAY_MS: "1",
-      CODEXSHOT_APPSHOT_CLOSE_VIEWER: "true"
+      CMDCMD_RELAY_TOKEN: "secret",
+      CMDCMD_INBOX_DIR: tempDir,
+      CMDCMD_APPSHOT_OPEN_VIEWER: "true",
+      CMDCMD_APPSHOT_VIEWER_BUNDLE: "com.apple.Preview",
+      CMDCMD_APPSHOT_CODEX_BUNDLE: "com.openai.codex",
+      CMDCMD_APPSHOT_OPEN_DELAY_MS: "1",
+      CMDCMD_APPSHOT_PASTE_DELAY_MS: "1",
+      CMDCMD_APPSHOT_CLOSE_VIEWER: "true"
     },
     { cwd: tempDir }
   );
   const client = new DesktopAppshotClient(config, {
     logger: { info() {}, error() {} },
-    desktopHelperCommand: "/tmp/codexshot-desktop-helper",
+    desktopHelperCommand: "/tmp/cmdcmd-desktop-helper",
     runCommand: async (command, args) => {
       commands.push({ command, args });
       return { stdout: "", stderr: "" };
@@ -197,7 +197,7 @@ test("DesktopAppshotClient opens the screenshot and pastes it into Codex", async
   );
   assert.deepEqual(commands.map(({ command, args }) => [command, args[0]]), [
     ["/usr/bin/open", "-b"],
-    ["/tmp/codexshot-desktop-helper", "--image-path"]
+    ["/tmp/cmdcmd-desktop-helper", "--image-path"]
   ]);
   assert.equal(commands[0].args[1], "com.apple.Preview");
   assert.deepEqual(commands[1].args, [
@@ -282,8 +282,8 @@ test("delivery status reports Codex Desktop progress honestly", () => {
     captureId: "55555555-5555-4555-8555-555555555555"
   };
   const stored = {
-    imagePath: "/tmp/codexshot/image.png",
-    metadataPath: "/tmp/codexshot/metadata.json"
+    imagePath: "/tmp/cmdcmd/image.png",
+    metadataPath: "/tmp/cmdcmd/metadata.json"
   };
 
   const accepted = store.accept(capture, stored, "req_test");
@@ -305,8 +305,8 @@ test("createServer requires bearer auth for capture posts", async (t) => {
   const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
   const config = loadConfig(
     {
-      CODEXSHOT_RELAY_TOKEN: "secret",
-      CODEXSHOT_INBOX_DIR: inboxDir
+      CMDCMD_RELAY_TOKEN: "secret",
+      CMDCMD_INBOX_DIR: inboxDir
     },
     { cwd: process.cwd() }
   );
@@ -359,8 +359,8 @@ test("createServer exposes authenticated delivery status until completion", asyn
   const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
   const config = loadConfig(
     {
-      CODEXSHOT_RELAY_TOKEN: "secret",
-      CODEXSHOT_INBOX_DIR: inboxDir
+      CMDCMD_RELAY_TOKEN: "secret",
+      CMDCMD_INBOX_DIR: inboxDir
     },
     { cwd: process.cwd() }
   );

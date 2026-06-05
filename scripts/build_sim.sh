@@ -2,8 +2,8 @@
 set -euo pipefail
 
 xcodebuild \
-  -project CodexShot.xcodeproj \
-  -scheme CodexShot \
+  -project CmdCmd.xcodeproj \
+  -scheme CmdCmd \
   -configuration Debug \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   CODE_SIGNING_ALLOWED=NO \

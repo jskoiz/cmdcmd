@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 
 private let capturePipelineLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CodexShot",
+    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CmdCmd",
     category: "CapturePipeline"
 )
 
@@ -133,7 +133,7 @@ enum CapturePipeline {
             capturePipelineLogger.error("submit invalid endpoint captureId=\(record.id.uuidString, privacy: .public)")
         } catch {
             record.status = .failed
-            record.statusMessage = error.localizedDescription
+            record.statusMessage = userFacingFailureMessage(for: error, settings: settings)
             capturePipelineLogger.error(
                 "submit failed captureId=\(record.id.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public) elapsedMs=\(elapsedMilliseconds(since: startedAt), privacy: .public)"
             )
@@ -148,6 +148,40 @@ enum CapturePipeline {
 
     private static func queuedMessage() -> String {
         "Queued"
+    }
+
+    private static func userFacingFailureMessage(for error: Error, settings: RelaySettings) -> String {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain,
+           nsError.code == NSURLErrorNotConnectedToInternet,
+           endpointUsesLocalNetwork(settings.endpoint) {
+            return CaptureFailurePresentation.relayReachabilityMessage(endpoint: settings.endpoint)
+        }
+
+        return error.localizedDescription
+    }
+
+    private static func endpointUsesLocalNetwork(_ endpoint: String) -> Bool {
+        guard let host = URL(string: endpoint.trimmingCharacters(in: .whitespacesAndNewlines))?.host()?.lowercased() else {
+            return false
+        }
+
+        if host == "localhost" || host.hasSuffix(".local") {
+            return true
+        }
+
+        if host.hasPrefix("10.") || host.hasPrefix("192.168.") {
+            return true
+        }
+
+        if host.hasPrefix("172.") {
+            let parts = host.split(separator: ".")
+            if parts.count >= 2, let second = Int(parts[1]), (16...31).contains(second) {
+                return true
+            }
+        }
+
+        return false
     }
 
     private static func applyDeliveryStatus(

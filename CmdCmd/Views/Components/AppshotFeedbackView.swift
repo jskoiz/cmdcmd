@@ -156,6 +156,8 @@ struct AppshotCaptureFeedbackView: View {
     var phase: AppshotSendFeedbackPhase
     var imageData: Data?
     var message: String?
+    var openSettings: (() -> Void)?
+    var settingsActionTitle = "Open Settings"
 
     @State private var expanded = false
     @State private var spinning = false
@@ -167,23 +169,7 @@ struct AppshotCaptureFeedbackView: View {
             snapshot(width: metrics.previewWidth, height: metrics.previewHeight)
             statusLine
         }
-        .padding(14)
         .frame(width: metrics.cardWidth)
-        .background {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(.regularMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .fill(Theme.glossOverlay)
-                        .blendMode(.softLight)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .strokeBorder(.white.opacity(0.56), lineWidth: 1)
-                }
-                .shadow(color: .black.opacity(0.16), radius: 28, x: 0, y: 18)
-                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 3)
-        }
         .scaleEffect(expanded ? 1 : 0.04, anchor: .center)
         .opacity(expanded ? 1 : 0)
         .animation(.spring(response: 0.35, dampingFraction: 0.73).delay(0.15), value: expanded)
@@ -237,9 +223,6 @@ struct AppshotCaptureFeedbackView: View {
 
     private func snapshot(width: CGFloat, height: CGFloat) -> some View {
         ZStack(alignment: .bottomTrailing) {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-
             if let previewImage {
                 Image(uiImage: previewImage)
                     .resizable()
@@ -252,9 +235,6 @@ struct AppshotCaptureFeedbackView: View {
                     .foregroundStyle(.secondary.opacity(0.76))
             }
 
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(.white.opacity(0.48), lineWidth: 1)
-
             if !phase.isWorking {
                 phaseBadge
                     .padding(9)
@@ -264,25 +244,42 @@ struct AppshotCaptureFeedbackView: View {
         .clipped()
     }
 
+    @ViewBuilder
     private var statusLine: some View {
-        HStack(spacing: 8) {
+        let content = HStack(alignment: .top, spacing: 10) {
             if phase.isWorking {
                 workingRing
                     .frame(width: 18, height: 18)
+                    .padding(.top, 1)
             } else {
                 Image(systemName: phase.symbolName)
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 18, height: 18)
                     .background(phase.accent, in: Circle())
+                    .padding(.top, 1)
             }
 
             if phase == .failed, let message, !message.isEmpty {
-                Text("\(phase.title) · \(message)")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(phase.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text(message)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if openSettings != nil {
+                        Text(settingsActionTitle)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(phase.accent)
+                            .padding(.top, 1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text(phase.title)
                     .font(.subheadline.weight(.semibold))
@@ -291,27 +288,43 @@ struct AppshotCaptureFeedbackView: View {
                     .minimumScaleFactor(0.78)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: phase == .failed ? .leading : .center)
+        .contentShape(Rectangle())
+
+        if phase == .failed, let openSettings {
+            Button(action: openSettings) {
+                content
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens settings")
+        } else {
+            content
+        }
     }
 
+    @ViewBuilder
     private var phaseBadge: some View {
-        ZStack {
-            Circle()
-                .fill(.thinMaterial)
-                .frame(width: 34, height: 34)
-                .overlay {
-                    Circle()
-                        .strokeBorder(.white.opacity(0.62), lineWidth: 1)
-                }
-
+        let content = Group {
             if phase.isWorking {
                 workingRing
                     .frame(width: 19, height: 19)
             } else {
                 Image(systemName: phase.symbolName)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(phase.accent)
             }
+        }
+        .frame(width: 44, height: 44)
+        .contentShape(Circle())
+
+        if phase == .failed, let openSettings {
+            Button(action: openSettings) {
+                content
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open settings")
+        } else {
+            content
         }
     }
 

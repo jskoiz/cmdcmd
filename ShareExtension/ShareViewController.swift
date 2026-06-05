@@ -12,6 +12,9 @@ final class ShareViewController: UIViewController {
             },
             finish: { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: nil)
+            },
+            openSettings: { [weak self] completion in
+                self?.openContainingAppSettings(completion: completion)
             }
         )
 
@@ -51,6 +54,16 @@ final class ShareViewController: UIViewController {
         }
 
         return input
+    }
+
+    private func openContainingAppSettings(completion: @escaping (Bool) -> Void) {
+        guard let extensionContext,
+              let url = URL(string: "cmdcmd://settings") else {
+            completion(false)
+            return
+        }
+
+        extensionContext.open(url, completionHandler: completion)
     }
 }
 

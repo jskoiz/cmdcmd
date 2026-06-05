@@ -25,6 +25,8 @@
 		<key>NSAllowsArbitraryLoadsInLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>cmd+cmd connects to your private relay on this Mac over your local network.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>

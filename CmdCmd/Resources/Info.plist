@@ -18,6 +18,17 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.jskoiz.cmdcmd</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>cmdcmd</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -29,6 +40,8 @@
 	</dict>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>cmd+cmd uses Photos to choose screenshots and send your latest screenshot to your configured Codex relay.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>cmd+cmd connects to your private relay on this Mac over your local network.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

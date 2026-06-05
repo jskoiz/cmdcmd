@@ -95,6 +95,38 @@ struct RelaySettings: Codable, Hashable {
     )
 }
 
+enum FailureSettingsDestination {
+    case relay
+    case systemApp
+}
+
+enum CaptureFailurePresentation {
+    static func relayReachabilityMessage(endpoint: String) -> String {
+        guard let host = URL(string: endpoint.trimmingCharacters(in: .whitespacesAndNewlines))?.host(),
+              !host.isEmpty else {
+            return "Could not reach the relay. Check the endpoint, Wi-Fi, and relay app, then try again."
+        }
+
+        return "Could not reach the relay at \(host). Make sure this iPhone and Mac are on the same network and the relay is running, then try again."
+    }
+
+    static func settingsDestination(for message: String?) -> FailureSettingsDestination {
+        guard let message else {
+            return .relay
+        }
+
+        let normalizedMessage = message
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+
+        if normalizedMessage.contains("local network") {
+            return .systemApp
+        }
+
+        return .relay
+    }
+}
+
 struct CaptureImageMetadata: Codable, Hashable {
     var capturedAt: Date?
     var pixelWidth: Int?

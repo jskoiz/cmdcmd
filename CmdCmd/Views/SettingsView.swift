@@ -4,6 +4,8 @@ struct SettingsView: View {
     @Bindable var store: CaptureStore
     @State private var draft = RelaySettings.empty
     @State private var savedMessage = ""
+    @State private var relayCheckMessage = ""
+    @State private var isCheckingRelay = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -23,6 +25,8 @@ struct SettingsView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
+                    Divider().overlay(.white.opacity(0.25))
+                    relayCheckRow
                 }
 
                 SettingsCard(title: "Context", icon: "text.alignleft", tint: Theme.accentBlue) {
@@ -82,6 +86,95 @@ struct SettingsView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    private var relayCheckRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                Task { await testRelayConnection() }
+            } label: {
+                HStack(spacing: 8) {
+                    if isCheckingRelay {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "network")
+                    }
+                    Text(isCheckingRelay ? "Checking Relay" : "Test Connection")
+                }
+                .font(.footnote.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.brandDeep)
+            .disabled(isCheckingRelay)
+
+            if !relayCheckMessage.isEmpty {
+                Text(relayCheckMessage)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @MainActor
+    private func testRelayConnection() async {
+        isCheckingRelay = true
+        relayCheckMessage = ""
+        let message = await RelayDiagnostics.check(endpoint: draft.endpoint)
+        relayCheckMessage = message
+        isCheckingRelay = false
+    }
+}
+
+private enum RelayDiagnostics {
+    static func check(endpoint: String) async -> String {
+        let trimmedEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedEndpoint.isEmpty else {
+            return "Add a relay endpoint before testing."
+        }
+
+        guard let url = healthURL(for: trimmedEndpoint) else {
+            return "The relay endpoint is not a valid URL."
+        }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return "Relay responded without an HTTP status."
+            }
+
+            if (200..<300).contains(httpResponse.statusCode) {
+                return "Relay is reachable at \(url.host() ?? trimmedEndpoint)."
+            }
+
+            return "Relay health check returned HTTP \(httpResponse.statusCode)."
+        } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain,
+               nsError.code == NSURLErrorNotConnectedToInternet {
+                return CaptureFailurePresentation.relayReachabilityMessage(endpoint: trimmedEndpoint)
+            }
+
+            return error.localizedDescription
+        }
+    }
+
+    private static func healthURL(for endpoint: String) -> URL? {
+        guard var components = URLComponents(string: endpoint),
+              let scheme = components.scheme,
+              ["http", "https"].contains(scheme),
+              components.host != nil else {
+            return nil
+        }
+
+        components.path = "/healthz"
+        components.query = nil
+        components.fragment = nil
+        return components.url
     }
 }
 

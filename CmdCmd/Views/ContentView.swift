@@ -44,6 +44,18 @@ struct ContentView: View {
                 .padding(.trailing, 22)
         }
         .tint(Theme.brand)
+        .onOpenURL { url in
+            guard url.scheme == "cmdcmd" else {
+                return
+            }
+
+            switch url.host() {
+            case "settings":
+                openSettings()
+            default:
+                return
+            }
+        }
     }
 
     @ViewBuilder
@@ -51,7 +63,10 @@ struct ContentView: View {
         switch selectedTab {
         case .capture:
             NavigationStack {
-                CaptureView(store: store)
+                CaptureView(
+                    store: store,
+                    openSettings: openSettings
+                )
             }
         case .history:
             NavigationStack {
@@ -61,6 +76,12 @@ struct ContentView: View {
             NavigationStack {
                 SettingsView(store: store)
             }
+        }
+    }
+
+    private func openSettings() {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+            selectedTab = .settings
         }
     }
 }

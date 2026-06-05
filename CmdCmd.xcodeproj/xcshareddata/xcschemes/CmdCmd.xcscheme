@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "110000000000000000000501"
-               BuildableName = "CodexShot.app"
-               BlueprintName = "CodexShot"
-               ReferencedContainer = "container:CodexShot.xcodeproj">
+               BuildableName = "cmd+cmd.app"
+               BlueprintName = "CmdCmd"
+               ReferencedContainer = "container:CmdCmd.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -46,9 +46,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "110000000000000000000501"
-            BuildableName = "CodexShot.app"
-            BlueprintName = "CodexShot"
-            ReferencedContainer = "container:CodexShot.xcodeproj">
+            BuildableName = "cmd+cmd.app"
+            BlueprintName = "CmdCmd"
+            ReferencedContainer = "container:CmdCmd.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -63,9 +63,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "110000000000000000000501"
-            BuildableName = "CodexShot.app"
-            BlueprintName = "CodexShot"
-            ReferencedContainer = "container:CodexShot.xcodeproj">
+            BuildableName = "cmd+cmd.app"
+            BlueprintName = "CmdCmd"
+            ReferencedContainer = "container:CmdCmd.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

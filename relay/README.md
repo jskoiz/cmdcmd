@@ -20,12 +20,12 @@ cp .env.example .env
 
 Edit `.env`:
 
-- Replace `CODEXSHOT_RELAY_TOKEN` with a long random value.
-- Keep `CODEXSHOT_HOST=127.0.0.1` for simulator-only testing, or bind to a
+- Replace `CMDCMD_RELAY_TOKEN` with a long random value.
+- Keep `CMDCMD_HOST=127.0.0.1` for simulator-only testing, or bind to a
   trusted private interface for a physical phone.
-- Keep `CODEXSHOT_APPSHOT_OPEN_VIEWER=true` when the screenshot should open in
+- Keep `CMDCMD_APPSHOT_OPEN_VIEWER=true` when the screenshot should open in
   Preview before the relay helper attaches it to Codex Desktop.
-- Keep `CODEXSHOT_APPSHOT_CLOSE_VIEWER=true` when the Preview thumbnail should
+- Keep `CMDCMD_APPSHOT_CLOSE_VIEWER=true` when the Preview thumbnail should
   close automatically after the attach.
 
 Start the relay:
@@ -48,7 +48,7 @@ Tunnel and set the app endpoint to that private URL.
 With the relay running and `.env` configured:
 
 ```bash
-CODEXSHOT_RELAY_URL=http://127.0.0.1:8787/v1/captures npm run smoke:post
+CMDCMD_RELAY_URL=http://127.0.0.1:8787/v1/captures npm run smoke:post
 ```
 
 The script posts `fixtures/sample-payload.json` with the bearer token from
@@ -60,10 +60,10 @@ paste path and may bring Preview and Codex Desktop to the foreground.
 Default settings:
 
 ```text
-CODEXSHOT_APPSHOT_OPEN_VIEWER=true
-CODEXSHOT_APPSHOT_VIEWER_BUNDLE=com.apple.Preview
-CODEXSHOT_APPSHOT_CLOSE_VIEWER=true
-CODEXSHOT_APPSHOT_CODEX_BUNDLE=com.openai.codex
+CMDCMD_APPSHOT_OPEN_VIEWER=true
+CMDCMD_APPSHOT_VIEWER_BUNDLE=com.apple.Preview
+CMDCMD_APPSHOT_CLOSE_VIEWER=true
+CMDCMD_APPSHOT_CODEX_BUNDLE=com.openai.codex
 ```
 
 When a capture arrives, the relay saves the image, opens it in the configured
@@ -91,10 +91,10 @@ relay messages, including:
 Useful optional settings:
 
 ```text
-CODEXSHOT_APPSHOT_OPEN_DELAY_MS=750
-CODEXSHOT_APPSHOT_OPEN_TIMEOUT_MS=5000
-CODEXSHOT_APPSHOT_PASTE_DELAY_MS=400
-CODEXSHOT_APPSHOT_PASTE_TIMEOUT_MS=10000
+CMDCMD_APPSHOT_OPEN_DELAY_MS=750
+CMDCMD_APPSHOT_OPEN_TIMEOUT_MS=5000
+CMDCMD_APPSHOT_PASTE_DELAY_MS=400
+CMDCMD_APPSHOT_PASTE_TIMEOUT_MS=10000
 ```
 
 macOS may require Accessibility permission for the relay's native desktop
@@ -106,7 +106,7 @@ In cmd+cmd Settings:
 
 - Endpoint URL: `http://127.0.0.1:8787/v1/captures` for simulator, or the
   trusted private URL for a physical phone.
-- Bearer token: the exact value of `CODEXSHOT_RELAY_TOKEN`.
+- Bearer token: the exact value of `CMDCMD_RELAY_TOKEN`.
 - Default context and OCR settings: optional context that is sent with each
   screenshot. OCR-enabled captures also send timing, confidence, line count, and
   visible-app inference metadata.

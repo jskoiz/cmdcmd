@@ -4,10 +4,14 @@ import UIKit
 struct ShareCaptureView: View {
     var loadInput: () async -> SharedCaptureInput
     var finish: () -> Void
+    var openSettings: (@escaping (Bool) -> Void) -> Void = { completion in
+        completion(false)
+    }
 
     @State private var input = SharedCaptureInput()
     @State private var phase: ShareSendPhase = .loading
     @State private var didStart = false
+    @State private var isShowingFailureHelp = false
 
     var body: some View {
         NavigationStack {
@@ -30,6 +34,11 @@ struct ShareCaptureView: View {
             .task {
                 await loadAndSendOnce()
             }
+            .alert("Fix Relay Connection", isPresented: $isShowingFailureHelp) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(failureHelpMessage)
+            }
         }
     }
 
@@ -37,7 +46,9 @@ struct ShareCaptureView: View {
         AppshotCaptureFeedbackView(
             phase: phase.feedbackPhase,
             imageData: input.imageData,
-            message: phase.feedbackMessage
+            message: phase.feedbackMessage,
+            openSettings: openSettingsForCurrentFailure,
+            settingsActionTitle: failureSettingsActionTitle
         )
     }
 
@@ -90,6 +101,38 @@ struct ShareCaptureView: View {
             phase = .failed(record.statusMessage)
             AppshotFeedback.shared.playCompletion(success: false)
         }
+    }
+
+    private func openSettingsForCurrentFailure() {
+        switch CaptureFailurePresentation.settingsDestination(for: phase.feedbackMessage) {
+        case .relay:
+            openSettings { didOpen in
+                Task { @MainActor in
+                    if !didOpen {
+                        isShowingFailureHelp = true
+                    }
+                }
+            }
+        case .systemApp:
+            isShowingFailureHelp = true
+        }
+    }
+
+    private var failureSettingsActionTitle: String {
+        switch CaptureFailurePresentation.settingsDestination(for: phase.feedbackMessage) {
+        case .relay:
+            "Open Relay Settings"
+        case .systemApp:
+            "Show Fix"
+        }
+    }
+
+    private var failureHelpMessage: String {
+        if let message = phase.feedbackMessage, !message.isEmpty {
+            return "\(message)\n\nIf iOS shows a Local Network toggle for cmd+cmd, turn it on. If that toggle is missing, open cmd+cmd relay settings and confirm the endpoint matches the Mac relay URL."
+        }
+
+        return "Open cmd+cmd relay settings and confirm the endpoint matches the Mac relay URL."
     }
 }
 

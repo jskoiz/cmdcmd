@@ -5,12 +5,13 @@ import SwiftUI
 import UIKit
 
 private let captureViewLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CodexShot",
+    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CmdCmd",
     category: "CaptureView"
 )
 
 struct CaptureView: View {
     @Bindable var store: CaptureStore
+    var openSettings: () -> Void = {}
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var imageData: Data?
@@ -20,6 +21,7 @@ struct CaptureView: View {
     @State private var feedbackPhase: AppshotSendFeedbackPhase?
     @State private var feedbackMessage: String?
     @State private var feedbackToken = UUID()
+    @State private var isShowingFailureHelp = false
 
     var body: some View {
         ZStack {
@@ -34,6 +36,11 @@ struct CaptureView: View {
         }
         .background {
             AppBackground()
+        }
+        .alert("Fix Relay Connection", isPresented: $isShowingFailureHelp) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(failureHelpMessage)
         }
         .safeAreaInset(edge: .bottom) {
             sendButton
@@ -114,24 +121,28 @@ struct CaptureView: View {
 
     private func previewWell(height: CGFloat) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(.secondarySystemBackground).opacity(0.82),
-                            Color(.systemBackground).opacity(0.72),
-                            Color(.systemGray5).opacity(0.62)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+            if imageData == nil {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(.secondarySystemBackground).opacity(0.82),
+                                Color(.systemBackground).opacity(0.72),
+                                Color(.systemGray5).opacity(0.62)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .strokeBorder(Theme.brand.opacity(0.08), lineWidth: 1)
-                }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .strokeBorder(Theme.brand.opacity(0.08), lineWidth: 1)
+                    }
 
-            previewImage
+                ImagePlaceholder()
+            } else {
+                previewImage
+            }
         }
         .frame(height: height)
     }
@@ -150,7 +161,7 @@ struct CaptureView: View {
                 }
                 .shadow(color: .black.opacity(0.16), radius: 18, x: 0, y: 12)
         } else {
-            ImagePlaceholder()
+            EmptyView()
         }
     }
 
@@ -167,14 +178,12 @@ struct CaptureView: View {
     @ViewBuilder
     private var feedbackOverlay: some View {
         if let feedbackPhase {
-            Color.black.opacity(0.08)
-                .ignoresSafeArea()
-                .transition(.opacity)
-
             AppshotCaptureFeedbackView(
                 phase: feedbackPhase,
                 imageData: imageData,
-                message: feedbackMessage
+                message: feedbackMessage,
+                openSettings: openSettingsFromFailure,
+                settingsActionTitle: failureSettingsActionTitle
             )
             .id(feedbackToken)
             .transition(.opacity)
@@ -217,7 +226,44 @@ struct CaptureView: View {
         captureViewLogger.info(
             "send completed status=\(record.status.rawValue, privacy: .public) message=\(record.statusMessage, privacy: .public)"
         )
-        await hideFeedback(after: didSend ? 850_000_000 : 1_800_000_000, token: token)
+        if didSend {
+            await hideFeedback(after: 850_000_000, token: token)
+        }
+    }
+
+    private func openSettingsFromFailure() {
+        guard feedbackPhase == .failed else {
+            return
+        }
+
+        let destination = CaptureFailurePresentation.settingsDestination(for: feedbackMessage)
+        withAnimation(.easeOut(duration: 0.18)) {
+            feedbackPhase = nil
+            feedbackMessage = nil
+        }
+        switch destination {
+        case .relay:
+            openSettings()
+        case .systemApp:
+            isShowingFailureHelp = true
+        }
+    }
+
+    private var failureSettingsActionTitle: String {
+        switch CaptureFailurePresentation.settingsDestination(for: feedbackMessage) {
+        case .relay:
+            "Open Relay Settings"
+        case .systemApp:
+            "Show Fix"
+        }
+    }
+
+    private var failureHelpMessage: String {
+        if let feedbackMessage, !feedbackMessage.isEmpty {
+            return "\(feedbackMessage)\n\nUse Relay settings to confirm the endpoint, then tap Test Connection. If iOS later shows a Local Network toggle for cmd+cmd, turn it on."
+        }
+
+        return "Use Relay settings to confirm the endpoint, then tap Test Connection."
     }
 
     @MainActor

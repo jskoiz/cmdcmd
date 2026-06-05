@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="CodexShot/Resources/Assets.xcassets/CmdCmdLogoDark.imageset/logo-dark.png">
-  <img alt="cmd+cmd" src="CodexShot/Resources/Assets.xcassets/CmdCmdLogo.imageset/logo.png" width="220">
+  <source media="(prefers-color-scheme: dark)" srcset="CmdCmd/Resources/Assets.xcassets/CmdCmdLogoDark.imageset/logo-dark.png">
+  <img alt="cmd+cmd" src="CmdCmd/Resources/Assets.xcassets/CmdCmdLogo.imageset/logo.png" width="220">
 </picture>
 
 # cmd+cmd

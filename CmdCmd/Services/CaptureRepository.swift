@@ -1,9 +1,9 @@
 import Foundation
 
 enum CaptureRepository {
-    private static let appGroupIdentifier = "group.com.jskoiz.codexshot"
-    private static let settingsKey = "codexshot.settings.v1"
-    private static let recordsKey = "codexshot.records.v1"
+    private static let appGroupIdentifier = "group.com.jskoiz.cmdcmd"
+    private static let settingsKey = "cmdcmd.settings.v1"
+    private static let recordsKey = "cmdcmd.records.v1"
     private static let maxRecords = 40
 
     private static var defaults: UserDefaults {
@@ -80,16 +80,16 @@ enum CaptureRepository {
     #if DEBUG
     private static func debugBootstrapSettingsFromEnvironment() -> RelaySettings? {
         let environment = ProcessInfo.processInfo.environment
-        let endpoint = environment["CODEXSHOT_RELAY_ENDPOINT"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let endpoint = environment["CMDCMD_RELAY_ENDPOINT"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !endpoint.isEmpty else {
             return nil
         }
 
         return RelaySettings(
             endpoint: endpoint,
-            apiToken: environment["CODEXSHOT_RELAY_TOKEN"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-            defaultContext: environment["CODEXSHOT_DEFAULT_CONTEXT"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-            includeRecognizedText: environment["CODEXSHOT_INCLUDE_OCR"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "false"
+            apiToken: environment["CMDCMD_RELAY_TOKEN"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            defaultContext: environment["CMDCMD_DEFAULT_CONTEXT"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            includeRecognizedText: environment["CMDCMD_INCLUDE_OCR"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "false"
         )
     }
     #endif

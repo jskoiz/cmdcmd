@@ -7,9 +7,9 @@ export const DESKTOP_HELPER_VERSION = "2026-06-05.4";
 export async function ensureDesktopHelper(options = {}) {
   const cacheDir =
     options.cacheDir ??
-    path.join(os.homedir(), "Library", "Caches", "codexshot-relay");
-  const helperPath = path.join(cacheDir, "codexshot-desktop-helper");
-  const sourcePath = path.join(cacheDir, "codexshot-desktop-helper.swift");
+    path.join(os.homedir(), "Library", "Caches", "cmdcmd-relay");
+  const helperPath = path.join(cacheDir, "cmdcmd-desktop-helper");
+  const sourcePath = path.join(cacheDir, "cmdcmd-desktop-helper.swift");
   const versionPath = path.join(cacheDir, "desktop-helper.version");
 
   if (await helperIsCurrent(helperPath, versionPath)) {
@@ -66,7 +66,7 @@ struct Config {
 }
 
 func fail(_ message: String, code: Int32 = 1) -> Never {
-    fputs("codexshot-desktop-helper: \(message)\n", stderr)
+    fputs("cmdcmd-desktop-helper: \(message)\n", stderr)
     exit(code)
 }
 

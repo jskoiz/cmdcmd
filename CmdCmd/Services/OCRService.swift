@@ -4,7 +4,7 @@ import UIKit
 import Vision
 
 private let ocrLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CodexShot",
+    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CmdCmd",
     category: "OCRService"
 )
 

@@ -7,11 +7,11 @@ const relayRoot = fileURLToPath(new URL("..", import.meta.url));
 loadEnvFile(path.join(relayRoot, ".env"));
 
 const endpoint =
-  process.env.CODEXSHOT_RELAY_URL ?? "http://127.0.0.1:8787/v1/captures";
-const token = process.env.CODEXSHOT_RELAY_TOKEN;
+  process.env.CMDCMD_RELAY_URL ?? "http://127.0.0.1:8787/v1/captures";
+const token = process.env.CMDCMD_RELAY_TOKEN;
 
 if (!token) {
-  console.error("CODEXSHOT_RELAY_TOKEN is required.");
+  console.error("CMDCMD_RELAY_TOKEN is required.");
   process.exit(1);
 }
 

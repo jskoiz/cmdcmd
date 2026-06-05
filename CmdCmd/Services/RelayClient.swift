@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 
 private let relayClientLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CodexShot",
+    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CmdCmd",
     category: "RelayClient"
 )
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct CodexShotApp: App {
+struct CmdCmdApp: App {
     @State private var store = CaptureStore()
 
     var body: some Scene {
