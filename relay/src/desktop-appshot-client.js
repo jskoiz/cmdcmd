@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs/promises";
+import { ensureDesktopHelper } from "./desktop-helper.js";
 import { logInfo } from "./logger.js";
 
 export class DesktopAppshotClient {
@@ -6,6 +8,9 @@ export class DesktopAppshotClient {
     this.config = config;
     this.logger = options.logger ?? console;
     this.openCommand = options.openCommand ?? "/usr/bin/open";
+    this.runCommand = options.runCommand ?? runCommand;
+    this.desktopHelperCommand = options.desktopHelperCommand;
+    this.ensureDesktopHelper = options.ensureDesktopHelper ?? ensureDesktopHelper;
   }
 
   async deliver(capture, stored) {
@@ -20,7 +25,7 @@ export class DesktopAppshotClient {
     });
 
     if (appshot.openImageInViewer) {
-      await runCommand(
+      await this.runCommand(
         this.openCommand,
         ["-b", appshot.viewerBundle, stored.imagePath],
         { timeoutMs: appshot.openTimeoutMs }
@@ -28,15 +33,25 @@ export class DesktopAppshotClient {
       await delay(appshot.openDelayMs);
     }
 
-    const helperArgs = buildHelperArgs(appshot);
-    const helperResult = await runCommand(appshot.helperPath, helperArgs, {
-      timeoutMs: appshot.helperTimeoutMs
-    });
+    const helperCommand =
+      this.desktopHelperCommand ??
+      (await this.ensureDesktopHelper({
+        runCommand: this.runCommand
+      }));
+    const textPath = await writeAttachmentTextIfNeeded(
+      stored.metadataPath,
+      buildDesktopAttachmentText(capture)
+    );
+    const helperResult = await this.runCommand(
+      helperCommand,
+      buildDesktopHelperArgs(stored.imagePath, appshot, { textPath }),
+      { timeoutMs: appshot.pasteTimeoutMs }
+    );
 
     logInfo(this.logger, "desktop_appshot.delivery_completed", {
       captureId: capture.captureId,
-      helperPath: appshot.helperPath,
-      helperArgs,
+      codexBundle: appshot.codexBundle,
+      helperCommand,
       stdout: helperResult.stdout || null,
       stderr: helperResult.stderr || null,
       durationMs: Date.now() - startedAt
@@ -45,50 +60,69 @@ export class DesktopAppshotClient {
     return {
       status: "delivered",
       deliveryLane: "desktop-appshot",
-      message: appshot.openImageInViewer
-        ? "Triggered Desktop Appshot from phone screenshot"
-        : "Triggered Desktop Appshot",
+      message: "Attached phone screenshot in the frontmost Codex chat",
       imagePath: stored.imagePath,
       metadataPath: stored.metadataPath,
-      targetBundle: targetBundleFor(appshot) ?? null
+      targetBundle: appshot.codexBundle
     };
   }
 }
 
-export function buildHelperArgs(appshot) {
-  const args = [];
+export function buildDesktopHelperArgs(imagePath, appshot, options = {}) {
+  const args = [
+    "--image-path",
+    imagePath,
+    "--codex-bundle",
+    appshot.codexBundle,
+    "--focus-delay-ms",
+    String(appshot.pasteDelayMs),
+    "--composer-bottom-offset",
+    "70"
+  ];
 
-  if (appshot.hotkey) {
-    args.push("--hotkey", appshot.hotkey);
+  if (options.textPath) {
+    args.push("--text-path", options.textPath);
   }
 
-  const targetBundle = targetBundleFor(appshot);
-  if (targetBundle) {
-    args.push("--target-bundle", targetBundle);
+  if (appshot.openImageInViewer && appshot.closeViewerWindow) {
+    args.push("--viewer-bundle", appshot.viewerBundle, "--close-viewer");
   }
-
-  if (appshot.noPrime) {
-    args.push("--no-prime");
-  }
-
-  appendNumberOption(args, "--codex-delay", appshot.codexDelay);
-  appendNumberOption(args, "--restore-delay", appshot.restoreDelay);
-  appendNumberOption(args, "--hold-delay", appshot.holdDelay);
 
   return args;
 }
 
-function targetBundleFor(appshot) {
-  return (
-    appshot.targetBundle ||
-    (appshot.openImageInViewer ? appshot.viewerBundle : undefined)
-  );
+export function buildDesktopAttachmentText(capture) {
+  const sections = [];
+  const context = cleanMultiline(capture.context);
+  const recognizedText = cleanMultiline(capture.recognizedText);
+
+  if (context) {
+    sections.push(`Context:\n${context}`);
+  }
+
+  if (recognizedText) {
+    sections.push(`OCR text:\n${recognizedText}`);
+  }
+
+  return sections.join("\n\n");
 }
 
-function appendNumberOption(args, name, value) {
-  if (value !== undefined) {
-    args.push(name, String(value));
+async function writeAttachmentTextIfNeeded(metadataPath, text) {
+  if (!text) {
+    return null;
   }
+
+  const textPath = metadataPath.endsWith(".json")
+    ? `${metadataPath.slice(0, -5)}.txt`
+    : `${metadataPath}.txt`;
+  await fs.writeFile(textPath, `${text}\n`, { mode: 0o600 });
+  return textPath;
+}
+
+function cleanMultiline(value) {
+  return typeof value === "string"
+    ? value.replaceAll("\r\n", "\n").replaceAll("\r", "\n").trim()
+    : "";
 }
 
 function runCommand(command, args, options) {

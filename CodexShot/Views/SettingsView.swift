@@ -31,12 +31,6 @@ struct SettingsView: View {
                             .lineLimit(2...5)
                     }
                     Divider().overlay(.white.opacity(0.25))
-                    SettingsField(label: "Thread hint") {
-                        TextField("Optional thread id", text: $draft.threadHint)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                    }
-                    Divider().overlay(.white.opacity(0.25))
                     Toggle(isOn: $draft.includeRecognizedText) {
                         Text("Include OCR text")
                             .font(.subheadline.weight(.medium))

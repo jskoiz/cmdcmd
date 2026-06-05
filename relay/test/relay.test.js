@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { after, before, test } from "node:test";
-import { buildTurnInput, sandboxModeToPolicy } from "../src/app-server-client.js";
+import { test } from "node:test";
 import { loadConfig } from "../src/config.js";
 import {
-  buildHelperArgs,
+  buildDesktopAttachmentText,
+  buildDesktopHelperArgs,
   DesktopAppshotClient
 } from "../src/desktop-appshot-client.js";
 import { createDeliveryStatusStore } from "../src/delivery-status.js";
-import { buildCodexPrompt } from "../src/prompt.js";
 import { deliverPayload } from "../src/relay.js";
 import { createServer } from "../src/server.js";
 
@@ -22,14 +21,13 @@ const samplePayload = {
   sourceDetail: "Unit test",
   context: "Please review the screenshot.",
   recognizedText: "OCR from screenshot",
-  threadHint: "",
   imageFilename: "../unsafe name.png",
   imageMimeType: "image/png",
   imageBase64:
     "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAACKADAAQAAAABAAAACAAAAACVhHtSAAAAGklEQVQIHWMW2Nkoy776XwcPGsnEgAMMTgkAzi8JTigyXpYAAAAASUVORK5CYII="
 };
 
-test("deliverPayload validates, stores, and queues the Codex client", async () => {
+test("deliverPayload validates, stores, and queues Codex Desktop delivery", async () => {
   const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
   const calls = [];
   let resolveDelivery;
@@ -45,9 +43,8 @@ test("deliverPayload validates, stores, and queues the Codex client", async () =
         resolveDelivery();
         return {
           status: "delivered",
-          threadId: "thr_test",
-          finalResponse: "ok",
-          usage: null
+          deliveryLane: "desktop-appshot",
+          message: "Attached phone screenshot in the frontmost Codex chat"
         };
       }
     }
@@ -70,207 +67,187 @@ test("deliverPayload validates, stores, and queues the Codex client", async () =
   assert.equal(metadata.imagePath, result.imagePath);
 });
 
-test("deliverPayload uses the configured default thread when the payload omits one", async () => {
-  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
-  let deliveredThreadHint = "";
-  let resolveDelivery;
-  const deliveryStarted = new Promise((resolve) => {
-    resolveDelivery = resolve;
-  });
-
-  const result = await deliverPayload(samplePayload, {
-    config: {
-      inboxDir,
-      codex: {
-        defaultThreadHint: "019e945a-df22-79a0-977d-5c25eb11ba43"
-      }
-    },
-    deliveryStatusStore: createDeliveryStatusStore(),
-    codexClient: {
-      async deliver(capture) {
-        deliveredThreadHint = capture.threadHint;
-        resolveDelivery();
-        return {
-          status: "delivered",
-          threadId: capture.threadHint,
-          finalResponse: "ok",
-          usage: null
-        };
-      }
-    }
-  });
-
-  assert.equal(result.status, "accepted");
-  await deliveryStarted;
-  assert.equal(deliveredThreadHint, "019e945a-df22-79a0-977d-5c25eb11ba43");
-});
-
-test("buildCodexPrompt includes the stored screenshot and OCR context", () => {
-  const prompt = buildCodexPrompt(
+test("loadConfig includes Codex Desktop paste defaults", () => {
+  const config = loadConfig(
     {
-      ...samplePayload,
-      imageBuffer: Buffer.from("x")
+      CODEXSHOT_RELAY_TOKEN: "secret"
     },
-    {
-      imagePath: "/tmp/cmd-cmd/sample.png",
-      metadataPath: "/tmp/cmd-cmd/sample.json"
-    }
+    { cwd: process.cwd() }
   );
 
-  assert.match(prompt, /A screenshot was sent from cmd\+cmd/);
-  assert.match(prompt, /\/tmp\/cmd-cmd\/sample\.png/);
-  assert.match(prompt, /Please review the screenshot/);
-  assert.match(prompt, /OCR from screenshot/);
+  assert.equal(config.appshot.openImageInViewer, true);
+  assert.equal(config.appshot.viewerBundle, "com.apple.Preview");
+  assert.equal(config.appshot.closeViewerWindow, true);
+  assert.equal(config.appshot.codexBundle, "com.openai.codex");
+  assert.equal(config.appshot.pasteDelayMs, 400);
 });
 
-test("buildTurnInput sends the screenshot as a native local image", () => {
-  const input = buildTurnInput(
-    {
-      ...samplePayload,
-      imageBuffer: Buffer.from("x")
-    },
-    {
-      imagePath: "/tmp/cmd-cmd/sample.png",
-      metadataPath: "/tmp/cmd-cmd/sample.json"
-    }
-  );
-
-  assert.equal(input.length, 2);
-  assert.equal(input[0].type, "text");
-  assert.equal(input[0].text_elements.length, 0);
-  assert.match(input[0].text, /A screenshot was sent from cmd\+cmd/);
-  assert.deepEqual(input[1], {
-    type: "localImage",
-    path: "/tmp/cmd-cmd/sample.png",
-    detail: "high"
-  });
-});
-
-test("sandboxModeToPolicy maps relay sandbox settings to app-server policy", () => {
-  assert.deepEqual(sandboxModeToPolicy("read-only"), {
-    type: "readOnly",
-    networkAccess: false
-  });
-  assert.deepEqual(sandboxModeToPolicy("danger-full-access"), {
-    type: "dangerFullAccess"
-  });
-});
-
-test("loadConfig requires the Desktop Appshot helper for Appshot delivery", () => {
+test("loadConfig rejects obsolete relay delivery settings", () => {
   assert.throws(
     () =>
       loadConfig(
         {
           CODEXSHOT_RELAY_TOKEN: "secret",
-          CODEXSHOT_DELIVERY_MODE: "desktop-appshot"
+          CODEXSHOT_DELIVERY_MODE: "app-server"
         },
         { cwd: process.cwd() }
       ),
-    /CODEXSHOT_APPSHOT_HELPER is required/
+    /CODEXSHOT_DELIVERY_MODE is no longer supported/
   );
 });
 
-test("buildHelperArgs targets the viewer for phone screenshot Appshots", () => {
-  assert.deepEqual(
-    buildHelperArgs({
-      hotkey: "DoubleCommand",
-      targetBundle: undefined,
-      openImageInViewer: true,
-      viewerBundle: "com.apple.Preview",
-      noPrime: false,
-      codexDelay: undefined,
-      restoreDelay: undefined,
-      holdDelay: undefined
-    }),
-    [
-      "--hotkey",
-      "DoubleCommand",
-      "--target-bundle",
-      "com.apple.Preview"
-    ]
+test("loadConfig rejects obsolete Appshot helper settings", () => {
+  assert.throws(
+    () =>
+      loadConfig(
+        {
+          CODEXSHOT_RELAY_TOKEN: "secret",
+          CODEXSHOT_APPSHOT_HELPER: "/tmp/helper"
+        },
+        { cwd: process.cwd() }
+      ),
+    /CODEXSHOT_APPSHOT_HELPER is no longer supported/
   );
 });
 
-test("DesktopAppshotClient invokes the configured helper", async () => {
+test("DesktopAppshotClient opens the screenshot and pastes it into Codex", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "codexshot-appshot-"));
-  const helperPath = path.join(tempDir, "helper.mjs");
-  const argsPath = path.join(tempDir, "helper-args.json");
-  await fs.writeFile(
-    helperPath,
-    `#!/usr/bin/env node
-import fs from "node:fs";
-fs.writeFileSync(${JSON.stringify(argsPath)}, JSON.stringify(process.argv.slice(2)));
-`,
-    { mode: 0o700 }
-  );
+  const imagePath = path.join(tempDir, "image.png");
+  await fs.writeFile(imagePath, Buffer.from(samplePayload.imageBase64, "base64"));
+  const commands = [];
 
   const config = loadConfig(
     {
       CODEXSHOT_RELAY_TOKEN: "secret",
       CODEXSHOT_INBOX_DIR: tempDir,
-      CODEXSHOT_DELIVERY_MODE: "desktop-appshot",
-      CODEXSHOT_APPSHOT_HELPER: helperPath,
-      CODEXSHOT_APPSHOT_OPEN_VIEWER: "false",
-      CODEXSHOT_APPSHOT_TARGET_BUNDLE: "com.example.Viewer",
-      CODEXSHOT_APPSHOT_HOTKEY: "DoubleShift",
-      CODEXSHOT_APPSHOT_NO_PRIME: "true",
-      CODEXSHOT_APPSHOT_CODEX_DELAY: "0.1",
-      CODEXSHOT_APPSHOT_RESTORE_DELAY: "0.2",
-      CODEXSHOT_APPSHOT_HOLD_DELAY: "0.3"
+      CODEXSHOT_APPSHOT_OPEN_VIEWER: "true",
+      CODEXSHOT_APPSHOT_VIEWER_BUNDLE: "com.apple.Preview",
+      CODEXSHOT_APPSHOT_CODEX_BUNDLE: "com.openai.codex",
+      CODEXSHOT_APPSHOT_OPEN_DELAY_MS: "1",
+      CODEXSHOT_APPSHOT_PASTE_DELAY_MS: "1",
+      CODEXSHOT_APPSHOT_CLOSE_VIEWER: "true"
     },
     { cwd: tempDir }
   );
   const client = new DesktopAppshotClient(config, {
-    logger: { info() {}, error() {} }
+    logger: { info() {}, error() {} },
+    desktopHelperCommand: "/tmp/codexshot-desktop-helper",
+    runCommand: async (command, args) => {
+      commands.push({ command, args });
+      return { stdout: "", stderr: "" };
+    }
   });
 
   const result = await client.deliver(samplePayload, {
-    imagePath: path.join(tempDir, "image.png"),
+    imagePath,
     metadataPath: path.join(tempDir, "metadata.json")
   });
 
   assert.equal(result.status, "delivered");
   assert.equal(result.deliveryLane, "desktop-appshot");
-  assert.equal(result.message, "Triggered Desktop Appshot");
-  assert.deepEqual(JSON.parse(await fs.readFile(argsPath, "utf8")), [
-    "--hotkey",
-    "DoubleShift",
-    "--target-bundle",
-    "com.example.Viewer",
-    "--no-prime",
-    "--codex-delay",
-    "0.1",
-    "--restore-delay",
-    "0.2",
-    "--hold-delay",
-    "0.3"
+  assert.equal(
+    result.message,
+    "Attached phone screenshot in the frontmost Codex chat"
+  );
+  assert.equal(result.targetBundle, "com.openai.codex");
+  const textPath = path.join(tempDir, "metadata.txt");
+  assert.equal(
+    await fs.readFile(textPath, "utf8"),
+    "Context:\nPlease review the screenshot.\n\nOCR text:\nOCR from screenshot\n"
+  );
+  assert.deepEqual(commands.map(({ command, args }) => [command, args[0]]), [
+    ["/usr/bin/open", "-b"],
+    ["/tmp/codexshot-desktop-helper", "--image-path"]
+  ]);
+  assert.equal(commands[0].args[1], "com.apple.Preview");
+  assert.deepEqual(commands[1].args, [
+    "--image-path",
+    imagePath,
+    "--codex-bundle",
+    "com.openai.codex",
+    "--focus-delay-ms",
+    "1",
+    "--composer-bottom-offset",
+    "70",
+    "--text-path",
+    textPath,
+    "--viewer-bundle",
+    "com.apple.Preview",
+    "--close-viewer"
   ]);
 });
 
-test("delivery status reports Desktop Appshot progress honestly", () => {
+test("buildDesktopHelperArgs configures frontmost composer paste", () => {
+  assert.deepEqual(
+    buildDesktopHelperArgs(
+      "/tmp/screenshot.png",
+      {
+        codexBundle: "com.openai.codex",
+        pasteDelayMs: 250,
+        openImageInViewer: true,
+        closeViewerWindow: true,
+        viewerBundle: "com.apple.Preview"
+      },
+      { textPath: "/tmp/screenshot.txt" }
+    ),
+    [
+      "--image-path",
+      "/tmp/screenshot.png",
+      "--codex-bundle",
+      "com.openai.codex",
+      "--focus-delay-ms",
+      "250",
+      "--composer-bottom-offset",
+      "70",
+      "--text-path",
+      "/tmp/screenshot.txt",
+      "--viewer-bundle",
+      "com.apple.Preview",
+      "--close-viewer"
+    ]
+  );
+});
+
+test("buildDesktopAttachmentText includes context and OCR", () => {
+  assert.equal(
+    buildDesktopAttachmentText(samplePayload),
+    "Context:\nPlease review the screenshot.\n\nOCR text:\nOCR from screenshot"
+  );
+  assert.equal(
+    buildDesktopAttachmentText({
+      context: "",
+      recognizedText: "  Visible text  "
+    }),
+    "OCR text:\nVisible text"
+  );
+});
+
+test("delivery status reports Codex Desktop progress honestly", () => {
   const store = createDeliveryStatusStore();
   const capture = {
-    captureId: "55555555-5555-4555-8555-555555555555",
-    threadHint: ""
+    captureId: "55555555-5555-4555-8555-555555555555"
   };
   const stored = {
     imagePath: "/tmp/codexshot/image.png",
     metadataPath: "/tmp/codexshot/metadata.json"
   };
 
-  const accepted = store.accept(capture, stored, "req_test", "desktop-appshot");
-  assert.equal(accepted.message, "Queued for Desktop Appshot");
+  const accepted = store.accept(capture, stored, "req_test");
+  assert.equal(accepted.message, "Queued for the frontmost Codex chat");
 
-  const delivering = store.deliver(capture.captureId, "desktop-appshot");
-  assert.equal(delivering.message, "Triggering Desktop Appshot");
+  const delivering = store.deliver(capture.captureId);
+  assert.equal(delivering.message, "Attaching to the frontmost Codex chat");
 
   const delivered = store.complete(capture.captureId, {
     deliveryLane: "desktop-appshot"
   });
-  assert.equal(delivered.message, "Triggered Desktop Appshot");
+  assert.equal(
+    delivered.message,
+    "Attached phone screenshot in the frontmost Codex chat"
+  );
 });
 
-test("createServer requires bearer auth for capture posts", async () => {
+test("createServer requires bearer auth for capture posts", async (t) => {
   const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
   const config = loadConfig(
     {
@@ -285,17 +262,16 @@ test("createServer requires bearer auth for capture posts", async () => {
       async deliver() {
         return {
           status: "delivered",
-          threadId: "thr_test",
-          finalResponse: "ok",
-          usage: null
+          deliveryLane: "desktop-appshot",
+          message: "Attached phone screenshot in the frontmost Codex chat"
         };
       }
     },
-    logger: { error() {} }
+    logger: { error() {}, info() {} }
   });
 
   await listen(server);
-  after(() => server.close());
+  t.after(() => server.close());
 
   const url = `http://127.0.0.1:${server.address().port}/v1/captures`;
   const unauthorized = await fetch(url, {
@@ -325,7 +301,7 @@ test("createServer requires bearer auth for capture posts", async () => {
   );
 });
 
-test("createServer exposes authenticated delivery status until completion", async () => {
+test("createServer exposes authenticated delivery status until completion", async (t) => {
   const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
   const config = loadConfig(
     {
@@ -345,20 +321,16 @@ test("createServer exposes authenticated delivery status until completion", asyn
         await deliveryCanFinish;
         return {
           status: "delivered",
-          threadId: "019e945a-df22-79a0-977d-5c25eb11ba43",
-          turnId: "turn_test",
-          turnStatus: "completed",
-          deliveryLane: "app-server-turn",
-          finalResponse: null,
-          usage: null
+          deliveryLane: "desktop-appshot",
+          message: "Attached phone screenshot in the frontmost Codex chat"
         };
       }
     },
-    logger: { error() {} }
+    logger: { error() {}, info() {} }
   });
 
   await listen(server);
-  after(() => server.close());
+  t.after(() => server.close());
 
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
   const postResponse = await fetch(`${baseUrl}/v1/captures`, {
@@ -369,8 +341,7 @@ test("createServer exposes authenticated delivery status until completion", asyn
     },
     body: JSON.stringify({
       ...samplePayload,
-      captureId: "44444444-4444-4444-8444-444444444444",
-      threadHint: "019e945a-df22-79a0-977d-5c25eb11ba43"
+      captureId: "44444444-4444-4444-8444-444444444444"
     })
   });
   assert.equal(postResponse.status, 202);
@@ -390,9 +361,11 @@ test("createServer exposes authenticated delivery status until completion", asyn
     "secret",
     "delivered"
   );
-  assert.equal(deliveredBody.message, "Delivered to Codex thread");
-  assert.equal(deliveredBody.threadId, "019e945a-df22-79a0-977d-5c25eb11ba43");
-  assert.equal(deliveredBody.turnId, "turn_test");
+  assert.equal(
+    deliveredBody.message,
+    "Attached phone screenshot in the frontmost Codex chat"
+  );
+  assert.equal(deliveredBody.deliveryLane, "desktop-appshot");
 });
 
 test("invalid payloads are rejected before storage", async () => {
@@ -413,6 +386,27 @@ test("invalid payloads are rejected before storage", async () => {
         }
       ),
     /imageMimeType must be image\/png or image\/jpeg/
+  );
+});
+
+test("obsolete payload fields are rejected before storage", async () => {
+  await assert.rejects(
+    () =>
+      deliverPayload(
+        {
+          ...samplePayload,
+          threadHint: "019e945a-df22-79a0-977d-5c25eb11ba43"
+        },
+        {
+          config: { inboxDir: os.tmpdir() },
+          codexClient: {
+            async deliver() {
+              throw new Error("should not deliver");
+            }
+          }
+        }
+      ),
+    /Unsupported payload field: threadHint/
   );
 });
 

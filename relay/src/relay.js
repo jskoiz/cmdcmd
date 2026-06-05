@@ -8,14 +8,7 @@ export async function deliverPayload(payload, options) {
   const deliveryStatusStore = options.deliveryStatusStore ?? null;
 
   logInfo(logger, "capture.payload.validating", { requestId });
-  const submittedCapture = validateCapturePayload(payload);
-  const capture = {
-    ...submittedCapture,
-    threadHint:
-      submittedCapture.threadHint ||
-      options.config.codex?.defaultThreadHint ||
-      ""
-  };
+  const capture = validateCapturePayload(payload);
 
   logInfo(logger, "capture.payload.validated", {
     requestId,
@@ -23,13 +16,7 @@ export async function deliverPayload(payload, options) {
     source: capture.source,
     imageBytes: capture.imageBuffer.length,
     recognizedTextChars: capture.recognizedText.length,
-    contextChars: capture.context.length,
-    hasThreadHint: Boolean(capture.threadHint),
-    threadHintSource: submittedCapture.threadHint
-      ? "payload"
-      : capture.threadHint
-        ? "default"
-        : "none"
+    contextChars: capture.context.length
   });
 
   logInfo(logger, "capture.storage.persisting", {
@@ -44,17 +31,11 @@ export async function deliverPayload(payload, options) {
     imagePath: stored.imagePath,
     metadataPath: stored.metadataPath
   });
-  deliveryStatusStore?.accept(
-    capture,
-    stored,
-    requestId,
-    options.config.deliveryMode
-  );
+  deliveryStatusStore?.accept(capture, stored, requestId);
 
-  void deliverCaptureToCodex(capture, stored, {
+  void deliverCaptureToDesktop(capture, stored, {
     codexClient: options.codexClient,
     deliveryStatusStore,
-    deliveryMode: options.config.deliveryMode,
     logger,
     requestId
   });
@@ -68,16 +49,14 @@ export async function deliverPayload(payload, options) {
   };
 }
 
-async function deliverCaptureToCodex(capture, stored, options) {
+async function deliverCaptureToDesktop(capture, stored, options) {
   const logger = options.logger ?? console;
   const requestId = options.requestId ?? null;
-  const deliveryMode = options.deliveryMode ?? "app-server";
   const codexStartedAt = Date.now();
-  options.deliveryStatusStore?.deliver(capture.captureId, deliveryMode);
+  options.deliveryStatusStore?.deliver(capture.captureId);
   logInfo(logger, "capture.codex.delivery_started", {
     requestId,
-    captureId: capture.captureId,
-    deliveryMode
+    captureId: capture.captureId
   });
 
   try {
@@ -88,7 +67,6 @@ async function deliverCaptureToCodex(capture, stored, options) {
       captureId: capture.captureId,
       status: delivery.status,
       deliveryLane: delivery.deliveryLane ?? null,
-      threadId: delivery.threadId ?? null,
       durationMs: Date.now() - codexStartedAt
     });
   } catch (error) {

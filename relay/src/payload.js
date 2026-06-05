@@ -1,4 +1,16 @@
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg"]);
+const ALLOWED_PAYLOAD_FIELDS = new Set([
+  "schemaVersion",
+  "captureId",
+  "createdAt",
+  "source",
+  "sourceDetail",
+  "context",
+  "recognizedText",
+  "imageFilename",
+  "imageMimeType",
+  "imageBase64"
+]);
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -14,6 +26,7 @@ export function validateCapturePayload(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new PayloadValidationError("Request body must be a JSON object.");
   }
+  rejectUnsupportedFields(payload);
 
   if (payload.schemaVersion !== 1) {
     throw new PayloadValidationError("schemaVersion must be 1.");
@@ -50,11 +63,21 @@ export function validateCapturePayload(payload) {
     sourceDetail: optionalString(payload.sourceDetail),
     context: optionalString(payload.context),
     recognizedText: optionalString(payload.recognizedText),
-    threadHint: optionalString(payload.threadHint),
     imageFilename: requiredString(payload.imageFilename, "imageFilename"),
     imageMimeType,
     imageBuffer
   };
+}
+
+function rejectUnsupportedFields(payload) {
+  const unsupported = Object.keys(payload).filter(
+    (key) => !ALLOWED_PAYLOAD_FIELDS.has(key)
+  );
+  if (unsupported.length > 0) {
+    throw new PayloadValidationError(
+      `Unsupported payload field: ${unsupported[0]}.`
+    );
+  }
 }
 
 function requiredString(value, field) {

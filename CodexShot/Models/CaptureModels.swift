@@ -85,14 +85,12 @@ struct RelaySettings: Codable, Hashable {
     var endpoint: String
     var apiToken: String
     var defaultContext: String
-    var threadHint: String
     var includeRecognizedText: Bool
 
     static let empty = RelaySettings(
         endpoint: "",
         apiToken: "",
         defaultContext: "",
-        threadHint: "",
         includeRecognizedText: true
     )
 }
@@ -105,9 +103,7 @@ struct CaptureUploadPayload: Codable {
     var sourceDetail: String
     var context: String
     var recognizedText: String
-    var threadHint: String
     var imageFilename: String
     var imageMimeType: String
     var imageBase64: String
 }
-

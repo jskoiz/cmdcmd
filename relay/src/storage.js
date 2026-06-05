@@ -37,7 +37,6 @@ function metadataFor(capture, imagePath) {
     sourceDetail: capture.sourceDetail,
     context: capture.context,
     recognizedText: capture.recognizedText,
-    threadHint: capture.threadHint,
     imageFilename: capture.imageFilename,
     imageMimeType: capture.imageMimeType,
     imagePath

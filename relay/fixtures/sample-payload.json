@@ -6,7 +6,6 @@
   "sourceDetail": "Local smoke test",
   "context": "Smoke test: confirm this screenshot reached the relay.",
   "recognizedText": "Sample OCR text from cmd+cmd.",
-  "threadHint": "",
   "imageFilename": "sample.png",
   "imageMimeType": "image/png",
   "imageBase64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAACKADAAQAAAABAAAACAAAAACVhHtSAAAAGklEQVQIHWMW2Nkoy776XwcPGsnEgAMMTgkAzi8JTigyXpYAAAAASUVORK5CYII="

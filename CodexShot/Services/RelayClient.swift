@@ -38,9 +38,6 @@ struct RelayDeliveryStatus: Decodable {
     var captureId: UUID
     var status: String
     var message: String
-    var threadId: String?
-    var turnId: String?
-    var turnStatus: String?
     var deliveryLane: String?
 
     var isTerminal: Bool {

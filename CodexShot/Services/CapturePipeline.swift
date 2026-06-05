@@ -68,7 +68,6 @@ enum CapturePipeline {
             sourceDetail: sourceDetail,
             context: context,
             recognizedText: recognizedText,
-            threadHint: settings.threadHint,
             imageFilename: filename,
             imageMimeType: ImageProcessor.mimeType(for: uploadData, filename: filename),
             imageBase64: uploadData.base64EncodedString()
