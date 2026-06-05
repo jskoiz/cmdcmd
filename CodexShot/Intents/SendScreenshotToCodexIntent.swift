@@ -31,8 +31,44 @@ struct SendScreenshotToCodexIntent: AppIntent {
     }
 }
 
+struct SendLatestScreenshotToCodexIntent: AppIntent {
+    static var title: LocalizedStringResource = "Send Latest Screenshot to cmd+cmd"
+    static var description = IntentDescription("Uploads the most recent screenshot in Photos to the configured cmd+cmd relay.")
+    static var openAppWhenRun = false
+
+    @Parameter(title: "Context", default: "")
+    var context: String
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        do {
+            let screenshot = try await LatestScreenshotProvider.loadLatestScreenshot()
+            let record = await CapturePipeline.submit(
+                imageData: screenshot.data,
+                filename: screenshot.filename,
+                note: context,
+                source: .shortcut,
+                sourceDetail: "Latest Screenshot"
+            )
+
+            return .result(dialog: IntentDialog(stringLiteral: record.statusMessage))
+        } catch {
+            return .result(dialog: IntentDialog(stringLiteral: error.localizedDescription))
+        }
+    }
+}
+
 struct CmdCmdShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: SendLatestScreenshotToCodexIntent(),
+            phrases: [
+                "Send latest screenshot to \(.applicationName)",
+                "Send my latest screenshot to \(.applicationName)"
+            ],
+            shortTitle: "Latest Screenshot",
+            systemImageName: "photo"
+        )
+
         AppShortcut(
             intent: SendScreenshotToCodexIntent(),
             phrases: [

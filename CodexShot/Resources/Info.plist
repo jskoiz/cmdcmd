@@ -28,7 +28,7 @@
 		<true/>
 	</dict>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>cmd+cmd lets you choose screenshots to send to your configured Codex relay.</string>
+	<string>cmd+cmd uses Photos to choose screenshots and send your latest screenshot to your configured Codex relay.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
