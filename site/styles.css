@@ -441,7 +441,7 @@ footer {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: var(--s-4);
   padding: clamp(28px, 5vw, 44px) var(--pad);
