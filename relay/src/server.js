@@ -17,6 +17,10 @@ export function createServer({ config, codexClient, logger = console }) {
         return sendJson(response, 200, { status: "ok" });
       }
 
+      if (request.method === "GET" && requestUrl.pathname === "/pair") {
+        return sendPairPage(response, config);
+      }
+
       if (!isAuthorized(request.headers, config.token)) {
         logInfo(logger, "capture.request.unauthorized", {
           requestId,
@@ -85,12 +89,55 @@ export function createServer({ config, codexClient, logger = console }) {
   });
 }
 
+function sendPairPage(response, config) {
+  const endpoint = `http://${config.host}:${config.port}/v1/captures`;
+  response.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store"
+  });
+  response.end(`<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cmd+cmd pairing</title>
+<style>
+  body { margin: 0; font: 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f7f7f8; color: #151516; }
+  main { max-width: 560px; margin: 12vh auto; padding: 0 24px; }
+  h1 { font-size: 32px; line-height: 1.05; margin: 0 0 12px; letter-spacing: 0; }
+  p { color: #5f6066; line-height: 1.45; margin: 0 0 18px; }
+  code { display: block; padding: 14px 16px; border-radius: 10px; background: #e9e9ec; color: #151516; overflow-wrap: anywhere; }
+</style>
+<main>
+  <h1>cmd+cmd relay is running</h1>
+  <p>Use this Mac as the desktop relay for your iPhone.</p>
+  <code>${escapeHtml(endpoint)}</code>
+</main>
+`);
+}
+
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store"
   });
   response.end(`${JSON.stringify(body)}\n`);
+}
+
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, (character) => {
+    switch (character) {
+    case "&":
+      return "&amp;";
+    case "<":
+      return "&lt;";
+    case ">":
+      return "&gt;";
+    case "\"":
+      return "&quot;";
+    case "'":
+      return "&#39;";
+    default:
+      return character;
+    }
+  });
 }
 
 function parseStatusPath(pathname) {

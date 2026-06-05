@@ -12,7 +12,6 @@ private let captureViewLogger = Logger(
 struct CaptureView: View {
     @Bindable var store: CaptureStore
     var openSettings: () -> Void = {}
-    @Environment(\.colorScheme) private var colorScheme
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var imageData: Data?
     @State private var imageMetadata: CaptureImageMetadata = .empty
@@ -100,11 +99,8 @@ struct CaptureView: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            Image(colorScheme == .dark ? "CmdCmdLogoDark" : "CmdCmdLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 77, height: 26, alignment: .leading)
-                .accessibilityLabel("cmd plus cmd")
+            CommandSymbolMark(size: 52, rotation: .tapOnce)
+                .frame(width: 134, height: 52)
 
             Spacer()
         }
@@ -190,13 +186,39 @@ struct CaptureView: View {
     }
 
     private var sendButton: some View {
-        HeroSendButton(isBusy: isSending) {
-            Task { await sendSelectedImage() }
+        let showsInlineProgress = isSending && feedbackPhase == nil
+
+        return HeroSendButton(isBusy: isSending) {
+            if store.hasEndpoint {
+                Task { await sendSelectedImage() }
+            } else {
+                openSettings()
+            }
         } label: {
-            Text(isSending ? "Sending…" : "⌘+⌘")
-                .font(.headline.weight(.semibold))
+            HStack(spacing: 10) {
+                if !store.hasEndpoint {
+                    Image(systemName: "desktopcomputer")
+                        .font(.system(size: 18, weight: .semibold))
+                } else if showsInlineProgress {
+                    ProgressView()
+                        .tint(.white)
+                        .controlSize(.small)
+                } else if !isSending {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                Text(sendButtonTitle)
+                    .font(.headline.weight(.semibold))
+            }
         }
-        .disabled(isSending)
+        .disabled(isSending && store.hasEndpoint)
+    }
+
+    private var sendButtonTitle: String {
+        if !store.hasEndpoint {
+            return "Connect Desktop"
+        }
+        return isSending ? "Sending…" : "⌘+⌘"
     }
 
     @ViewBuilder

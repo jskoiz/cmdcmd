@@ -22,8 +22,10 @@
 		110000000000000000000114 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* Theme.swift */; };
 		110000000000000000000115 /* ImagePlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000015 /* ImagePlaceholder.swift */; };
 		110000000000000000000117 /* AppshotFeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* AppshotFeedbackView.swift */; };
+		110000000000000000000118 /* CommandSymbolSpinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000019 /* CommandSymbolSpinner.swift */; };
 		11000000000000000000020A /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* Theme.swift */; };
 		11000000000000000000020B /* AppshotFeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* AppshotFeedbackView.swift */; };
+		11000000000000000000020C /* CommandSymbolSpinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000019 /* CommandSymbolSpinner.swift */; };
 		11000000000000000000010B /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000B /* GlassPanel.swift */; };
 		11000000000000000000010C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000C /* ContentView.swift */; };
 		11000000000000000000010D /* CaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000D /* CaptureView.swift */; };
@@ -83,6 +85,7 @@
 		110000000000000000000014 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/Theme.swift; sourceTree = "<group>"; };
 		110000000000000000000015 /* ImagePlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/ImagePlaceholder.swift; sourceTree = "<group>"; };
 		110000000000000000000016 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		110000000000000000000019 /* CommandSymbolSpinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/CommandSymbolSpinner.swift; sourceTree = "<group>"; };
 		11000000000000000000000B /* GlassPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/GlassPanel.swift; sourceTree = "<group>"; };
 		11000000000000000000000C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ContentView.swift; sourceTree = "<group>"; };
 		11000000000000000000000D /* CaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/CaptureView.swift; sourceTree = "<group>"; };
@@ -151,6 +154,7 @@
 				110000000000000000000014 /* Theme.swift */,
 				110000000000000000000015 /* ImagePlaceholder.swift */,
 				110000000000000000000018 /* AppshotFeedbackView.swift */,
+				110000000000000000000019 /* CommandSymbolSpinner.swift */,
 				110000000000000000000016 /* Assets.xcassets */,
 				110000000000000000000011 /* Info.plist */,
 				110000000000000000000012 /* CmdCmd.entitlements */,
@@ -292,6 +296,7 @@
 				110000000000000000000114 /* Theme.swift in Sources */,
 				110000000000000000000115 /* ImagePlaceholder.swift in Sources */,
 				110000000000000000000117 /* AppshotFeedbackView.swift in Sources */,
+				110000000000000000000118 /* CommandSymbolSpinner.swift in Sources */,
 				11000000000000000000010B /* GlassPanel.swift in Sources */,
 				11000000000000000000010C /* ContentView.swift in Sources */,
 				11000000000000000000010D /* CaptureView.swift in Sources */,
@@ -315,6 +320,7 @@
 				110000000000000000000207 /* GlassPanel.swift in Sources */,
 				11000000000000000000020A /* Theme.swift in Sources */,
 				11000000000000000000020B /* AppshotFeedbackView.swift in Sources */,
+				11000000000000000000020C /* CommandSymbolSpinner.swift in Sources */,
 				110000000000000000000208 /* ShareViewController.swift in Sources */,
 				110000000000000000000209 /* ShareCaptureView.swift in Sources */,
 			);

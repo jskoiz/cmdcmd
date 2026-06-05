@@ -160,7 +160,6 @@ struct AppshotCaptureFeedbackView: View {
     var settingsActionTitle = "Open Settings"
 
     @State private var expanded = false
-    @State private var spinning = false
 
     var body: some View {
         let metrics = layoutMetrics
@@ -176,13 +175,9 @@ struct AppshotCaptureFeedbackView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.78), value: phase)
         .onAppear {
             AppshotFeedback.shared.prepare()
-            spinning = phase.isWorking
             withAnimation(.spring(response: 0.35, dampingFraction: 0.73).delay(0.15)) {
                 expanded = true
             }
-        }
-        .onChange(of: phase) { _, newPhase in
-            spinning = newPhase.isWorking
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(phase.title)
@@ -247,9 +242,9 @@ struct AppshotCaptureFeedbackView: View {
     @ViewBuilder
     private var statusLine: some View {
         if phase.isWorking {
-            VStack(spacing: 7) {
-                CmdCmdSendingMark(spinning: spinning)
-                    .frame(width: 96, height: 30)
+            HStack(spacing: 8) {
+                CommandSymbolMark(size: 17, tint: Theme.brand)
+                    .frame(width: 44, height: 18)
 
                 Text(phase.title)
                     .font(.subheadline.weight(.semibold))
@@ -336,36 +331,6 @@ struct AppshotCaptureFeedbackView: View {
         }
     }
 
-}
-
-private struct CmdCmdSendingMark: View {
-    var spinning: Bool
-
-    var body: some View {
-        HStack(spacing: 11) {
-            rotatingCommand
-
-            Text("+")
-                .font(.system(size: 27, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .frame(width: 17, height: 27)
-
-            rotatingCommand
-        }
-        .accessibilityHidden(true)
-    }
-
-    private var rotatingCommand: some View {
-        Image(systemName: "command")
-            .font(.system(size: 26, weight: .bold))
-            .foregroundStyle(.primary)
-            .frame(width: 27, height: 27)
-            .rotationEffect(spinning ? .degrees(360) : .degrees(0))
-            .animation(
-                spinning ? .linear(duration: 1.55).repeatForever(autoreverses: false) : .default,
-                value: spinning
-            )
-    }
 }
 
 #Preview {

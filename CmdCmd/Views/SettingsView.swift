@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Bindable var store: CaptureStore
     @State private var draft = RelaySettings.empty
     @State private var savedMessage = ""
+    @State private var showsManualRelay = false
     @State private var relayCheckMessage = ""
     @State private var isCheckingRelay = false
 
@@ -12,21 +13,50 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: Theme.Space.md) {
                 header
 
-                SettingsCard(title: "Relay", icon: "antenna.radiowaves.left.and.right", tint: Theme.brand) {
-                    SettingsField(label: "Endpoint URL") {
-                        TextField("https://relay.local", text: $draft.endpoint)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .keyboardType(.URL)
+                SettingsCard(title: "Desktop", icon: "desktopcomputer", tint: Theme.brand) {
+                    HStack(alignment: .center, spacing: 12) {
+                        ConnectionStatusDot(isConnected: hasDraftEndpoint)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(hasDraftEndpoint ? "Ready" : "Not paired")
+                                .font(.headline.weight(.semibold))
+                            Text(hasDraftEndpoint ? endpointHost : "Finish on your Mac")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.78)
+                        }
                     }
-                    Divider().overlay(.white.opacity(0.25))
-                    SettingsField(label: "Bearer token") {
-                        SecureField("••••••••", text: $draft.apiToken)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+
+                    if !hasDraftEndpoint {
+                        MacPairingPrompt(url: macPairingURL)
                     }
-                    Divider().overlay(.white.opacity(0.25))
-                    relayCheckRow
+
+                    if hasDraftEndpoint {
+                        Divider().overlay(.white.opacity(0.25))
+                        relayCheckRow
+                    }
+
+                    DisclosureGroup(isExpanded: $showsManualRelay) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SettingsField(label: "Relay URL") {
+                                TextField("Optional", text: $draft.endpoint)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                                    .keyboardType(.URL)
+                            }
+                            Divider().overlay(.white.opacity(0.25))
+                            SettingsField(label: "Token") {
+                                SecureField("Optional", text: $draft.apiToken)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                            }
+                        }
+                        .padding(.top, 8)
+                    } label: {
+                        Text("Manual relay")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .tint(Theme.brand)
                 }
 
                 SettingsCard(title: "Context", icon: "text.alignleft", tint: Theme.accentBlue) {
@@ -53,11 +83,23 @@ struct SettingsView: View {
         .onAppear { draft = store.settings }
     }
 
+    private var hasDraftEndpoint: Bool {
+        !draft.endpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var endpointHost: String {
+        URL(string: draft.endpoint.trimmingCharacters(in: .whitespacesAndNewlines))?.host() ?? "Manual relay"
+    }
+
+    private var macPairingURL: String {
+        "http://127.0.0.1:8787/pair"
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Settings")
                 .font(.system(size: 34, weight: .bold, design: .rounded))
-            Text("Configure your private cmd+cmd relay")
+            Text("Connection and defaults")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
         }
@@ -73,7 +115,7 @@ struct SettingsView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 21, weight: .semibold))
-                    Text("Save Settings")
+                    Text("Save")
                         .font(.title3.weight(.semibold))
                 }
             }
@@ -175,6 +217,39 @@ private enum RelayDiagnostics {
         components.query = nil
         components.fragment = nil
         return components.url
+    }
+}
+
+private struct ConnectionStatusDot: View {
+    var isConnected: Bool
+
+    var body: some View {
+        Circle()
+            .fill(isConnected ? Color.green : Color(.systemGray3))
+            .frame(width: 10, height: 10)
+            .padding(7)
+            .background(Color(.tertiarySystemFill), in: Circle())
+            .accessibilityHidden(true)
+    }
+}
+
+private struct MacPairingPrompt: View {
+    var url: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("On the Mac with Codex, open:")
+                .font(.subheadline.weight(.semibold))
+
+            Text(url)
+                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
     }
 }
 

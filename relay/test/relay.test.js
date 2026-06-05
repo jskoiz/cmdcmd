@@ -397,6 +397,35 @@ test("createServer requires bearer auth for capture posts", async (t) => {
   );
 });
 
+test("createServer exposes the Mac pairing page without bearer auth", async (t) => {
+  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
+  const config = loadConfig(
+    {
+      CMDCMD_RELAY_TOKEN: "secret",
+      CMDCMD_INBOX_DIR: inboxDir
+    },
+    { cwd: process.cwd() }
+  );
+  const server = createServer({
+    config,
+    codexClient: {
+      async deliver() {
+        throw new Error("Unexpected delivery");
+      }
+    },
+    logger: { error() {}, info() {} }
+  });
+
+  await listen(server);
+  t.after(() => server.close());
+
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/pair`);
+  assert.equal(response.status, 200);
+  const body = await response.text();
+  assert.match(body, /cmd\+cmd relay is running/);
+  assert.match(body, /\/v1\/captures/);
+});
+
 test("createServer exposes authenticated delivery status until completion", async (t) => {
   const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
   const config = loadConfig(
