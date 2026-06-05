@@ -38,6 +38,8 @@
 		<key>NSAllowsArbitraryLoadsInLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>cmd+cmd uses the camera to scan the Desktop relay pairing QR code.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>cmd+cmd uses Photos to choose screenshots and send your latest screenshot to your configured Codex relay.</string>
 	<key>NSLocalNetworkUsageDescription</key>

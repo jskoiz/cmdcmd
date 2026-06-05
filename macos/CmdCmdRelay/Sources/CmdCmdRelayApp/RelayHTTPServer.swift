@@ -6,7 +6,8 @@ final class RelayHTTPServer {
     private let statusStore: DeliveryStatusStore
     private let eventHandler: (RelayEvent) -> Void
     private let maxBodyBytes = 12_500_000
-    private let queue = DispatchQueue(label: "app.cmdcmd.relay.http", qos: .userInitiated)
+    private let acceptQueue = DispatchQueue(label: "app.cmdcmd.relay.http.accept", qos: .userInitiated)
+    private let connectionQueue = DispatchQueue(label: "app.cmdcmd.relay.http.connection", qos: .userInitiated, attributes: .concurrent)
     private var listenSocket: Int32 = -1
     private var isStopping = false
 
@@ -56,7 +57,7 @@ final class RelayHTTPServer {
 
         listenSocket = socketFD
         isStopping = false
-        queue.async { [weak self] in
+        acceptQueue.async { [weak self] in
             self?.acceptLoop(socketFD: socketFD)
         }
     }
@@ -82,7 +83,7 @@ final class RelayHTTPServer {
                 continue
             }
 
-            queue.async { [weak self] in
+            connectionQueue.async { [weak self] in
                 self?.handleConnection(clientFD)
             }
         }
@@ -349,4 +350,3 @@ private struct HTTPResponse {
         }
     }
 }
-

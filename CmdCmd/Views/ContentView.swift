@@ -88,26 +88,12 @@ struct ContentView: View {
     }
 
     private func applyPairing(from url: URL) {
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+        guard let pairing = PairingLink.parse(url) else {
             openSettings()
             return
         }
 
-        let endpoint = components.queryItems?
-            .first(where: { $0.name == "endpoint" })?
-            .value?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let token = components.queryItems?
-            .first(where: { $0.name == "token" })?
-            .value?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        guard !endpoint.isEmpty, !token.isEmpty else {
-            openSettings()
-            return
-        }
-
-        store.applyPairing(endpoint: endpoint, apiToken: token)
+        store.applyPairing(endpoint: pairing.endpoint, apiToken: pairing.token)
         withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
             selectedTab = .capture
         }

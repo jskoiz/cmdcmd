@@ -95,6 +95,42 @@ struct RelaySettings: Codable, Hashable {
     )
 }
 
+struct PairingLink: Equatable {
+    var endpoint: String
+    var token: String
+
+    static func parse(_ rawValue: String) -> PairingLink? {
+        guard let url = URL(string: rawValue.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return nil
+        }
+
+        return parse(url)
+    }
+
+    static func parse(_ url: URL) -> PairingLink? {
+        guard url.scheme == "cmdcmd",
+              url.host() == "pair",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+
+        let endpoint = components.queryItems?
+            .first(where: { $0.name == "endpoint" })?
+            .value?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let token = components.queryItems?
+            .first(where: { $0.name == "token" })?
+            .value?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        guard !endpoint.isEmpty, !token.isEmpty else {
+            return nil
+        }
+
+        return PairingLink(endpoint: endpoint, token: token)
+    }
+}
+
 enum FailureSettingsDestination {
     case relay
     case systemApp

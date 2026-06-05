@@ -1,4 +1,6 @@
+import AVFoundation
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
     @Bindable var store: CaptureStore
@@ -7,6 +9,7 @@ struct SettingsView: View {
     @State private var showsManualRelay = false
     @State private var relayCheckMessage = ""
     @State private var isCheckingRelay = false
+    @State private var showsPairingScanner = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -21,19 +24,29 @@ struct SettingsView: View {
                                 .font(.headline.weight(.semibold))
                             Text(hasDraftEndpoint ? endpointHost : "Finish on your Mac")
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Theme.secondaryText)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.78)
                         }
                     }
 
                     if !hasDraftEndpoint {
-                        MacPairingPrompt(url: macPairingURL)
+                        DesktopOnboardingPrompt(siteURL: setupSiteURL) {
+                            showsPairingScanner = true
+                        }
                     }
 
                     if hasDraftEndpoint {
                         Divider().overlay(.white.opacity(0.25))
                         relayCheckRow
+                        Button {
+                            showsPairingScanner = true
+                        } label: {
+                            Label("Scan New QR", systemImage: "qrcode.viewfinder")
+                                .font(.footnote.weight(.semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.brandDeep)
                     }
 
                     DisclosureGroup(isExpanded: $showsManualRelay) {
@@ -55,6 +68,7 @@ struct SettingsView: View {
                     } label: {
                         Text("Manual relay")
                             .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.brandDeep)
                     }
                     .tint(Theme.brand)
                 }
@@ -81,6 +95,11 @@ struct SettingsView: View {
         .background { AppBackground() }
         .toolbar(.hidden, for: .navigationBar)
         .onAppear { draft = store.settings }
+        .sheet(isPresented: $showsPairingScanner) {
+            PairingScannerSheet { pairing in
+                applyPairing(pairing)
+            }
+        }
     }
 
     private var hasDraftEndpoint: Bool {
@@ -91,8 +110,8 @@ struct SettingsView: View {
         URL(string: draft.endpoint.trimmingCharacters(in: .whitespacesAndNewlines))?.host() ?? "Manual relay"
     }
 
-    private var macPairingURL: String {
-        "http://127.0.0.1:8787/pair"
+    private var setupSiteURL: String {
+        "https://cmd.avmil.xyz"
     }
 
     private var header: some View {
@@ -101,7 +120,7 @@ struct SettingsView: View {
                 .font(.system(size: 34, weight: .bold, design: .rounded))
             Text("Connection and defaults")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
         }
         .padding(.top, 6)
     }
@@ -153,7 +172,7 @@ struct SettingsView: View {
             if !relayCheckMessage.isEmpty {
                 Text(relayCheckMessage)
                     .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -167,6 +186,16 @@ struct SettingsView: View {
         let message = await RelayDiagnostics.check(endpoint: draft.endpoint)
         relayCheckMessage = message
         isCheckingRelay = false
+    }
+
+    @MainActor
+    private func applyPairing(_ pairing: PairingLink) {
+        draft.endpoint = pairing.endpoint
+        draft.apiToken = pairing.token
+        relayCheckMessage = ""
+        showsManualRelay = false
+        store.applyPairing(endpoint: pairing.endpoint, apiToken: pairing.token)
+        withAnimation { savedMessage = "Desktop linked" }
     }
 }
 
@@ -233,22 +262,261 @@ private struct ConnectionStatusDot: View {
     }
 }
 
-private struct MacPairingPrompt: View {
-    var url: String
+private struct DesktopOnboardingPrompt: View {
+    var siteURL: String
+    var scanAction: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("On the Mac with Codex, open:")
-                .font(.subheadline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 14) {
+            SetupStep(
+                number: "1",
+                title: "Open the setup site on your Mac",
+                detail: siteURL
+            )
+            SetupStep(
+                number: "2",
+                title: "Run the install command",
+                detail: "The installer starts the Desktop relay and prints a private pairing QR."
+            )
+            SetupStep(
+                number: "3",
+                title: "Scan the QR here",
+                detail: "This fills the relay endpoint and token on this iPhone."
+            )
 
-            Text(url)
-                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            Button(action: scanAction) {
+                Label("Scan Desktop QR", systemImage: "qrcode.viewfinder")
+                    .font(.headline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .background(Theme.sendGradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(Theme.glossOverlay.clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous)))
+        }
+    }
+}
+
+private struct SetupStep: View {
+    var number: String
+    var title: String
+    var detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(number)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(Theme.brandDeep, in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(detail)
+                    .font(number == "1" ? .system(.subheadline, design: .monospaced).weight(.semibold) : .subheadline)
+                    .foregroundStyle(Theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+private struct PairingScannerSheet: View {
+    var onPair: (PairingLink) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var scanMessage = "Point the camera at the QR shown in Terminal."
+    @State private var cameraError = ""
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .bottom) {
+                PairingQRCodeScanner { rawValue in
+                    guard let pairing = PairingLink.parse(rawValue) else {
+                        scanMessage = "That is not a cmd+cmd Desktop pairing QR."
+                        return false
+                    }
+
+                    onPair(pairing)
+                    dismiss()
+                    return true
+                } onError: { message in
+                    cameraError = message
+                    scanMessage = message
+                }
+                .ignoresSafeArea()
+
+                VStack(spacing: 12) {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.system(size: 54, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(30)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(.white.opacity(0.9), lineWidth: 2)
+                        )
+                        .accessibilityHidden(true)
+
+                    Text(scanMessage)
+                        .font(.footnote.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 26)
+                .frame(maxWidth: .infinity)
+                .background(.black.opacity(0.58))
+            }
+            .navigationTitle("Scan Desktop QR")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
+            .alert("Camera unavailable", isPresented: Binding(
+                get: { !cameraError.isEmpty },
+                set: { if !$0 { cameraError = "" } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(cameraError)
+            }
+        }
+    }
+}
+
+private struct PairingQRCodeScanner: UIViewControllerRepresentable {
+    var onCode: (String) -> Bool
+    var onError: (String) -> Void
+
+    func makeUIViewController(context: Context) -> PairingScannerViewController {
+        let controller = PairingScannerViewController()
+        controller.onCode = onCode
+        controller.onError = onError
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: PairingScannerViewController, context: Context) {
+        uiViewController.onCode = onCode
+        uiViewController.onError = onError
+    }
+}
+
+private final class PairingScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+    var onCode: ((String) -> Bool)?
+    var onError: ((String) -> Void)?
+
+    private let session = AVCaptureSession()
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var didCompleteScan = false
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        prepareCamera()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer?.frame = view.bounds
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        stopSession()
+    }
+
+    private func prepareCamera() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            configureSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    if granted {
+                        self.configureSession()
+                    } else {
+                        self.onError?("Camera permission is required to scan the Desktop pairing QR.")
+                    }
+                }
+            }
+        case .denied, .restricted:
+            onError?("Camera permission is required to scan the Desktop pairing QR.")
+        @unknown default:
+            onError?("Camera permission is unavailable.")
+        }
+    }
+
+    private func configureSession() {
+        guard let device = AVCaptureDevice.default(for: .video) else {
+            onError?("No camera is available on this device.")
+            return
+        }
+
+        do {
+            let input = try AVCaptureDeviceInput(device: device)
+            guard session.canAddInput(input) else {
+                onError?("The camera could not be added to the scanner.")
+                return
+            }
+            session.addInput(input)
+
+            let output = AVCaptureMetadataOutput()
+            guard session.canAddOutput(output) else {
+                onError?("QR scanning is unavailable on this device.")
+                return
+            }
+            session.addOutput(output)
+            output.setMetadataObjectsDelegate(self, queue: .main)
+            output.metadataObjectTypes = [.qr]
+
+            let layer = AVCaptureVideoPreviewLayer(session: session)
+            layer.videoGravity = .resizeAspectFill
+            layer.frame = view.bounds
+            view.layer.insertSublayer(layer, at: 0)
+            previewLayer = layer
+
+            DispatchQueue.global(qos: .userInitiated).async { [session] in
+                session.startRunning()
+            }
+        } catch {
+            onError?(error.localizedDescription)
+        }
+    }
+
+    private func stopSession() {
+        guard session.isRunning else {
+            return
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async { [session] in
+            session.stopRunning()
+        }
+    }
+
+    func metadataOutput(
+        _ output: AVCaptureMetadataOutput,
+        didOutput metadataObjects: [AVMetadataObject],
+        from connection: AVCaptureConnection
+    ) {
+        guard !didCompleteScan,
+              let object = metadataObjects
+                .compactMap({ $0 as? AVMetadataMachineReadableCodeObject })
+                .first(where: { $0.type == .qr }),
+              let value = object.stringValue else {
+            return
+        }
+
+        if onCode?(value) == true {
+            didCompleteScan = true
+            stopSession()
         }
     }
 }
@@ -282,11 +550,12 @@ private struct SettingsField<Content: View>: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
                 .textCase(.uppercase)
             content
                 .font(.body)
                 .textFieldStyle(.plain)
+                .foregroundStyle(.primary)
         }
     }
 }

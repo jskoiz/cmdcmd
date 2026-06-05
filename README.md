@@ -60,16 +60,25 @@ cmd+cmd is now designed as two user-facing pieces:
 - `cmd+cmd` for iPhone, distributed through TestFlight or the App Store.
 - `cmd+cmd Relay.app` for Mac, distributed as a signed and notarized download.
 
-The Mac relay app is the preferred setup path for users. It generates a
-per-user bearer token, runs the local screenshot relay, shows a pairing code for
-the iPhone app, and requests only the macOS Accessibility permission needed to
-paste into the visible Codex Desktop composer.
+The Mac relay installer is the preferred setup path for users. It installs the
+signed relay bundle under Application Support, prepares a private-network
+endpoint and per-user bearer token, starts the background LaunchAgent, waits for
+the relay to become reachable, and prints a terminal QR code. Users scan that
+QR inside the iPhone app to link the phone to this Mac.
 
 User install:
 
 ```bash
 curl -fsSL https://cmd.avmil.xyz/install.sh | bash
 ```
+
+Phone pairing:
+
+1. Open `cmd+cmd` on iPhone.
+2. Go to Settings and tap `Scan Desktop QR`.
+3. Scan the QR printed by the Mac installer.
+4. Grant macOS Accessibility permission so the relay can paste into Codex
+   Desktop.
 
 Release build:
 
@@ -84,7 +93,7 @@ before publishing it to the release URL used by `scripts/install-macos.sh`.
 
 The repo includes two relay implementations:
 
-- `macos/CmdCmdRelay`: the native Mac app for real users.
+- `macos/CmdCmdRelay`: the native Mac relay for real users.
 - `relay/`: the Node.js developer relay for local testing and protocol work.
 
 Both relays receive the app payload, save the screenshot and metadata to a
@@ -104,7 +113,8 @@ npm start
 ```
 
 Configure cmd+cmd's endpoint as `http://127.0.0.1:8787/v1/captures` for the
-iOS Simulator, or use a trusted private network URL for a physical phone.
+iOS Simulator. For a physical phone, prefer the installer QR so the iPhone gets
+the Mac's private-network endpoint and matching bearer token.
 Do not expose the relay on a shared or public network.
 
 See `relay/README.md` for setup and smoke test instructions.
