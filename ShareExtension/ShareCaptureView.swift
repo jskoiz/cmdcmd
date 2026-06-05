@@ -19,6 +19,7 @@ struct ShareCaptureView: View {
                 statusPanel
                 actionPanel
             }
+            .animation(.spring(response: 0.44, dampingFraction: 0.86), value: phase.canClose)
             .padding(.horizontal, 22)
             .padding(.vertical, phase.canRetry ? 18 : 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -53,7 +54,7 @@ struct ShareCaptureView: View {
     private var actionPanel: some View {
         if phase.canClose {
             HStack(spacing: 12) {
-                ShareActionButton(title: "Close", style: .secondary, action: finish)
+                ShareActionButton(title: phase.closeActionTitle, style: phase.closeActionStyle, action: finish)
 
                 if phase.canRetry {
                     ShareActionButton(title: "Try Again", style: .primary) {
@@ -61,6 +62,7 @@ struct ShareCaptureView: View {
                     }
                 }
             }
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
 
@@ -84,6 +86,10 @@ struct ShareCaptureView: View {
 
         phase = .loading
         AppshotFeedback.shared.playCaptureStart()
+
+        #if targetEnvironment(simulator)
+        await simulateSimulatorSend()
+        #else
         let settings = CaptureRepository.loadSettings()
         let readiness = await RelayClient(settings: settings).checkReadiness()
         if let failureMessage = readiness.failureMessage {
@@ -108,7 +114,17 @@ struct ShareCaptureView: View {
             phase = .failed(record.statusMessage)
             AppshotFeedback.shared.playCompletion(success: false)
         }
+        #endif
     }
+
+    #if targetEnvironment(simulator)
+    private func simulateSimulatorSend() async {
+        phase = .sending
+        try? await Task.sleep(nanoseconds: 1_300_000_000)
+        phase = .sent("Simulated send complete.")
+        AppshotFeedback.shared.playCompletion(success: true)
+    }
+    #endif
 
     private func openSettingsForCurrentFailure() {
         switch CaptureFailurePresentation.settingsDestination(for: phase.feedbackMessage) {
@@ -238,6 +254,24 @@ private enum ShareSendPhase: Equatable {
             true
         case .loading, .sending:
             false
+        }
+    }
+
+    var closeActionTitle: String {
+        switch self {
+        case .sent:
+            "Continue"
+        case .loading, .sending, .failed:
+            "Close"
+        }
+    }
+
+    var closeActionStyle: ShareActionButton.Style {
+        switch self {
+        case .sent:
+            .primary
+        case .loading, .sending, .failed:
+            .secondary
         }
     }
 }
