@@ -15,16 +15,13 @@ struct ShareCaptureView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 14) {
-                Spacer(minLength: 10)
+            VStack(spacing: phase.canRetry ? 14 : 10) {
                 statusPanel
                 actionPanel
-                Spacer(minLength: 10)
             }
             .padding(.horizontal, 22)
-            .padding(.top, 10)
-            .padding(.bottom, 18)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.vertical, phase.canRetry ? 18 : 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .background {
                 AppBackground()
             }
@@ -54,11 +51,14 @@ struct ShareCaptureView: View {
 
     @ViewBuilder
     private var actionPanel: some View {
-        if phase.canRetry {
+        if phase.canClose {
             HStack(spacing: 12) {
                 ShareActionButton(title: "Close", style: .secondary, action: finish)
-                ShareActionButton(title: "Try Again", style: .primary) {
-                    Task { await send(input) }
+
+                if phase.canRetry {
+                    ShareActionButton(title: "Try Again", style: .primary) {
+                        Task { await send(input) }
+                    }
                 }
             }
         }
@@ -95,8 +95,6 @@ struct ShareCaptureView: View {
         if record.status == .sent {
             phase = .sent(record.statusMessage)
             AppshotFeedback.shared.playCompletion(success: true)
-            try? await Task.sleep(nanoseconds: 650_000_000)
-            finish()
         } else {
             phase = .failed(record.statusMessage)
             AppshotFeedback.shared.playCompletion(success: false)
@@ -223,5 +221,14 @@ private enum ShareSendPhase: Equatable {
             return true
         }
         return false
+    }
+
+    var canClose: Bool {
+        switch self {
+        case .sent, .failed:
+            true
+        case .loading, .sending:
+            false
+        }
     }
 }

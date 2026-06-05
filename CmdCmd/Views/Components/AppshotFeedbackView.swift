@@ -165,7 +165,7 @@ struct AppshotCaptureFeedbackView: View {
     var body: some View {
         let metrics = layoutMetrics
 
-        VStack(spacing: phase == .failed ? 8 : 12) {
+        VStack(spacing: phase == .failed ? 8 : 10) {
             snapshot(width: metrics.previewWidth, height: metrics.previewHeight)
             statusLine
         }
@@ -201,14 +201,14 @@ struct AppshotCaptureFeedbackView: View {
         }
 
         let rawRatio = previewImage.size.height / max(previewImage.size.width, 1)
-        return min(max(rawRatio, 1.45), 2.35)
+        return min(max(rawRatio, 0.72), 2.35)
     }
 
     private var layoutMetrics: (cardWidth: CGFloat, previewWidth: CGFloat, previewHeight: CGFloat) {
         let screen = UIScreen.main.bounds.size
-        let cardWidth = min(max(screen.width - 52, 292), 340)
+        let cardWidth = min(max(screen.width - 64, 280), 320)
         let maxPreviewWidth = cardWidth - 42
-        let maxPreviewHeight = min(max(screen.height * 0.70, 520), 620)
+        let maxPreviewHeight = min(max(screen.height * 0.54, 360), 480)
 
         var previewWidth = maxPreviewWidth
         var previewHeight = previewWidth * previewAspectRatio
@@ -228,7 +228,7 @@ struct AppshotCaptureFeedbackView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: width, height: height)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             } else {
                 Image(systemName: "photo")
                     .font(.system(size: 34, weight: .medium))
@@ -246,19 +246,32 @@ struct AppshotCaptureFeedbackView: View {
 
     @ViewBuilder
     private var statusLine: some View {
-        let content = HStack(alignment: .top, spacing: 10) {
-            if phase.isWorking {
-                workingRing
-                    .frame(width: 18, height: 18)
-                    .padding(.top, 1)
-            } else {
-                Image(systemName: phase.symbolName)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 18, height: 18)
-                    .background(phase.accent, in: Circle())
-                    .padding(.top, 1)
+        if phase.isWorking {
+            VStack(spacing: 7) {
+                CmdCmdSendingMark(spinning: spinning)
+                    .frame(width: 96, height: 30)
+
+                Text(phase.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
             }
+            .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            statusContent
+        }
+    }
+
+    @ViewBuilder
+    private var statusContent: some View {
+        let content = HStack(alignment: .top, spacing: 10) {
+            Image(systemName: phase.symbolName)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 18, height: 18)
+                .background(phase.accent, in: Circle())
+                .padding(.top, 1)
 
             if phase == .failed, let message, !message.isEmpty {
                 VStack(alignment: .leading, spacing: 5) {
@@ -305,14 +318,9 @@ struct AppshotCaptureFeedbackView: View {
     @ViewBuilder
     private var phaseBadge: some View {
         let content = Group {
-            if phase.isWorking {
-                workingRing
-                    .frame(width: 19, height: 19)
-            } else {
-                Image(systemName: phase.symbolName)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(phase.accent)
-            }
+            Image(systemName: phase.symbolName)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(phase.accent)
         }
         .frame(width: 44, height: 44)
         .contentShape(Circle())
@@ -328,16 +336,33 @@ struct AppshotCaptureFeedbackView: View {
         }
     }
 
-    private var workingRing: some View {
-        Circle()
-            .trim(from: 0.12, to: 0.82)
-            .stroke(
-                Theme.brand,
-                style: StrokeStyle(lineWidth: 2.4, lineCap: .round)
-            )
+}
+
+private struct CmdCmdSendingMark: View {
+    var spinning: Bool
+
+    var body: some View {
+        HStack(spacing: 11) {
+            rotatingCommand
+
+            Text("+")
+                .font(.system(size: 27, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .frame(width: 17, height: 27)
+
+            rotatingCommand
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var rotatingCommand: some View {
+        Image(systemName: "command")
+            .font(.system(size: 26, weight: .bold))
+            .foregroundStyle(.primary)
+            .frame(width: 27, height: 27)
             .rotationEffect(spinning ? .degrees(360) : .degrees(0))
             .animation(
-                spinning ? .linear(duration: 0.82).repeatForever(autoreverses: false) : .default,
+                spinning ? .linear(duration: 1.55).repeatForever(autoreverses: false) : .default,
                 value: spinning
             )
     }
