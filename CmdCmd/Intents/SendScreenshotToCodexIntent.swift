@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 struct SendScreenshotToCodexIntent: AppIntent {
     static var title: LocalizedStringResource = "Send Screenshot to cmd+cmd"
-    static var description = IntentDescription("Uploads an image with optional context to the configured cmd+cmd relay.")
+    static var description = IntentDescription("Sends a screenshot to Codex Desktop, with optional context.")
     static var openAppWhenRun = false
 
     @Parameter(
@@ -33,7 +33,7 @@ struct SendScreenshotToCodexIntent: AppIntent {
 
 struct SendLatestScreenshotToCodexIntent: AppIntent {
     static var title: LocalizedStringResource = "Send Latest Screenshot to cmd+cmd"
-    static var description = IntentDescription("Uploads the most recent screenshot in Photos to the configured cmd+cmd relay.")
+    static var description = IntentDescription("Sends the most recent screenshot in Photos to Codex Desktop, with optional context.")
     static var openAppWhenRun = false
 
     @Parameter(title: "Context", default: "")

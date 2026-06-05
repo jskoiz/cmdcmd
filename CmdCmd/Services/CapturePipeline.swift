@@ -165,7 +165,7 @@ enum CapturePipeline {
     }
 
     private static func unconfirmedDeliveryMessage() -> String {
-        "AppShot reached the relay, but Codex delivery was not confirmed. Check Codex Desktop and the Mac relay, then try again."
+        "AppShot reached the relay, but delivery to Codex wasn't confirmed. Check Codex Desktop, then try again."
     }
 
     private static func userFacingFailureMessage(for error: Error, settings: RelaySettings) -> String {

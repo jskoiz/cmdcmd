@@ -118,7 +118,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Settings")
                 .font(.system(size: 34, weight: .bold, design: .rounded))
-            Text("Connection and defaults")
+            Text("Desktop connection and defaults")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Theme.secondaryText)
         }
