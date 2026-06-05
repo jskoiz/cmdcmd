@@ -4,6 +4,7 @@ import UIKit
 
 struct SettingsView: View {
     @Bindable var store: CaptureStore
+    var onFinished: () -> Void = {}
     @State private var draft = RelaySettings.empty
     @State private var savedMessage = ""
     @State private var showsManualRelay = false
@@ -86,6 +87,14 @@ struct SettingsView: View {
                     .tint(Theme.brand)
                 }
 
+                SettingsCard(title: "Info", icon: "info.circle", tint: Theme.tertiaryText) {
+                    DebugInfoRow(label: "Version", value: appVersionLabel)
+                    Divider().overlay(.white.opacity(0.25))
+                    DebugInfoRow(label: "Relay", value: hasDraftEndpoint ? endpointHost : "Not paired")
+                    Divider().overlay(.white.opacity(0.25))
+                    DebugInfoRow(label: "Token", value: tokenDebugLabel)
+                }
+
                 saveButton
             }
             .padding(.horizontal, 20)
@@ -130,6 +139,7 @@ struct SettingsView: View {
             HeroSendButton {
                 store.saveSettings(draft)
                 withAnimation { savedMessage = "Settings saved" }
+                onFinished()
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill")
@@ -183,7 +193,7 @@ struct SettingsView: View {
     private func testRelayConnection() async {
         isCheckingRelay = true
         relayCheckMessage = ""
-        let message = await RelayDiagnostics.check(endpoint: draft.endpoint)
+        let message = await RelayDiagnostics.check(settings: draft)
         relayCheckMessage = message
         isCheckingRelay = false
     }
@@ -200,52 +210,8 @@ struct SettingsView: View {
 }
 
 private enum RelayDiagnostics {
-    static func check(endpoint: String) async -> String {
-        let trimmedEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedEndpoint.isEmpty else {
-            return "Add a relay endpoint before testing."
-        }
-
-        guard let url = healthURL(for: trimmedEndpoint) else {
-            return "The relay endpoint is not a valid URL."
-        }
-
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 5
-        do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                return "Relay responded without an HTTP status."
-            }
-
-            if (200..<300).contains(httpResponse.statusCode) {
-                return "Relay is reachable at \(url.host() ?? trimmedEndpoint)."
-            }
-
-            return "Relay health check returned HTTP \(httpResponse.statusCode)."
-        } catch {
-            let nsError = error as NSError
-            if nsError.domain == NSURLErrorDomain,
-               nsError.code == NSURLErrorNotConnectedToInternet {
-                return CaptureFailurePresentation.relayReachabilityMessage(endpoint: trimmedEndpoint)
-            }
-
-            return error.localizedDescription
-        }
-    }
-
-    private static func healthURL(for endpoint: String) -> URL? {
-        guard var components = URLComponents(string: endpoint),
-              let scheme = components.scheme,
-              ["http", "https"].contains(scheme),
-              components.host != nil else {
-            return nil
-        }
-
-        components.path = "/healthz"
-        components.query = nil
-        components.fragment = nil
-        return components.url
+    static func check(settings: RelaySettings) async -> String {
+        await RelayClient(settings: settings).checkReadiness().message
     }
 }
 
@@ -562,6 +528,43 @@ private struct SettingsField<Content: View>: View {
                 .textFieldStyle(.plain)
                 .foregroundStyle(.primary)
         }
+    }
+}
+
+private struct DebugInfoRow: View {
+    var label: String
+    var value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.secondaryText)
+                .textCase(.uppercase)
+            Spacer(minLength: 14)
+            Text(value)
+                .font(.subheadline.monospaced().weight(.medium))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
+        }
+    }
+}
+
+private extension SettingsView {
+    var appVersionLabel: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "-"
+        return "\(version) (\(build))"
+    }
+
+    var tokenDebugLabel: String {
+        let token = draft.apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            return "Not set"
+        }
+        return "Set ...\(token.suffix(6))"
     }
 }
 

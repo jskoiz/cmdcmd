@@ -13,6 +13,7 @@ ERR_LOG="$LOG_DIR/cmdcmd-relay.err.log"
 RELAY_HEALTH_URL="http://127.0.0.1:8787/healthz"
 RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://github.com/jskoiz/cmdcmd/releases/latest/download}"
 ARCHIVE_NAME="CmdCmdRelay-macOS.zip"
+REVIEW_MODE="0"
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
 if [[ -n "$SCRIPT_SOURCE" && "$SCRIPT_SOURCE" != bash ]]; then
   ROOT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
@@ -29,22 +30,36 @@ trap cleanup EXIT
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/install-macos.sh
+Usage: scripts/install-macos.sh [--review-mode]
 
 Installs the cmd+cmd Relay bundle, starts the private background relay, waits
 until it is ready, and prints a QR code for the iOS app to scan.
 
+Options:
+  --review-mode               Save screenshots to a local Review Inbox instead
+                              of sending them to Codex Desktop.
+
 Environment:
   INSTALL_DIR                 Override destination bundle directory.
   CMDCMD_RELAY_RELEASE_URL    Override release download base URL.
+  CMDCMD_RELAY_REVIEW_MODE    Set to 1 to enable review mode.
 USAGE
 }
+
+case "${CMDCMD_RELAY_REVIEW_MODE:-0}" in
+  1|true|TRUE|yes|YES)
+    REVIEW_MODE="1"
+    ;;
+esac
 
 for arg in "$@"; do
   case "$arg" in
     -h|--help)
       usage
       exit 0
+      ;;
+    --review-mode)
+      REVIEW_MODE="1"
       ;;
     *)
       echo "Unknown argument: $arg" >&2
@@ -84,11 +99,34 @@ download_archive() {
 
 stop_existing_relay() {
   local pids
+  local native_pids
+  local legacy_pids
   launchctl bootout "gui/$(id -u)" "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
   pids="$(pgrep -f "cmd\\+cmd Relay\\.app/Contents/MacOS/CmdCmdRelayApp" || true)"
   if [[ -n "$pids" ]]; then
     kill $pids >/dev/null 2>&1 || true
   fi
+  native_pids="$(pgrep -f "CmdCmdRelayApp --serve" || true)"
+  if [[ -n "$native_pids" ]]; then
+    kill $native_pids >/dev/null 2>&1 || true
+  fi
+  legacy_pids="$(ps ax -o pid=,command= | awk '/\/(CodexShot|CmdCmd)\/relay\/src\/index\.js/ {print $1}' || true)"
+  if [[ -n "$legacy_pids" ]]; then
+    kill $legacy_pids >/dev/null 2>&1 || true
+  fi
+}
+
+wait_for_existing_relay_to_stop() {
+  for _ in {1..40}; do
+    if ! pgrep -f "CmdCmdRelayApp --serve" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo "Existing cmd+cmd Relay process did not stop." >&2
+  pgrep -af "CmdCmdRelayApp --serve" >&2 || true
+  exit 1
 }
 
 prepare_pairing() {
@@ -97,41 +135,17 @@ prepare_pairing() {
     exit 1
   fi
 
-  "$RELAY_EXECUTABLE" --prepare-pairing
+  if [[ "$REVIEW_MODE" == "1" ]]; then
+    "$RELAY_EXECUTABLE" --prepare-review-pairing
+  else
+    "$RELAY_EXECUTABLE" --prepare-pairing
+  fi
   RELAY_HEALTH_URL="$("$RELAY_EXECUTABLE" --print-health-url)"
 }
 
-install_launch_agent() {
-  mkdir -p "$(dirname "$LAUNCH_AGENT_PLIST")" "$LOG_DIR"
-  cat > "$LAUNCH_AGENT_PLIST" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>$LAUNCH_AGENT_LABEL</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>$RELAY_EXECUTABLE</string>
-    <string>--serve</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>ProcessType</key>
-  <string>Background</string>
-  <key>StandardOutPath</key>
-  <string>$OUT_LOG</string>
-  <key>StandardErrorPath</key>
-  <string>$ERR_LOG</string>
-</dict>
-</plist>
-PLIST
-
-  launchctl bootout "gui/$(id -u)" "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
-  launchctl bootstrap "gui/$(id -u)" "$LAUNCH_AGENT_PLIST"
-  launchctl kickstart -k "gui/$(id -u)/$LAUNCH_AGENT_LABEL" >/dev/null 2>&1 || true
+start_background_relay() {
+  mkdir -p "$LOG_DIR"
+  nohup "$RELAY_EXECUTABLE" --serve >>"$OUT_LOG" 2>>"$ERR_LOG" &
 }
 
 wait_for_relay() {
@@ -152,7 +166,46 @@ wait_for_relay() {
   exit 1
 }
 
+verify_relay_identity() {
+  local health
+  local escaped_executable
+  health="$(curl -fsS "$RELAY_HEALTH_URL" 2>/dev/null || true)"
+  escaped_executable="${RELAY_EXECUTABLE//\//\\/}"
+  if [[ "$health" == *"\"executablePath\":\"$RELAY_EXECUTABLE\""* ]] ||
+     [[ "$health" == *"\"executablePath\":\"$escaped_executable\""* ]]; then
+    return 0
+  fi
+
+  echo "Relay health check is not served by the installed relay." >&2
+  echo "Expected: $RELAY_EXECUTABLE" >&2
+  echo "Health: ${health:-unreachable}" >&2
+  exit 1
+}
+
+wait_for_relay_accessibility() {
+  if [[ "$REVIEW_MODE" == "1" ]]; then
+    return 0
+  fi
+
+  for _ in {1..60}; do
+    if curl -fsS "$RELAY_HEALTH_URL" 2>/dev/null | grep -q '"accessibility":"granted"'; then
+      return 0
+    fi
+    sleep 0.5
+  done
+
+  echo "Accessibility is still not available to cmd+cmd Relay." >&2
+  echo "If the row is already enabled in System Settings, remove cmd+cmd Relay with the minus button, rerun this installer, and approve it again." >&2
+  echo "Installed relay: $APP_PATH" >&2
+  exit 1
+}
+
 request_accessibility() {
+  if [[ "$REVIEW_MODE" == "1" ]]; then
+    echo "Review mode enabled. Codex Desktop and Accessibility are not required."
+    return
+  fi
+
   if "$RELAY_EXECUTABLE" --accessibility-status >/dev/null 2>&1; then
     echo "Accessibility permission already granted."
     return
@@ -181,6 +234,7 @@ if [[ -z "$FOUND_APP" ]]; then
 fi
 
 stop_existing_relay
+wait_for_existing_relay_to_stop
 
 mkdir -p "$INSTALL_DIR"
 rm -rf "$APP_PATH"
@@ -189,22 +243,38 @@ ditto "$FOUND_APP" "$APP_PATH"
 if codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1; then
   echo "Signature verified."
 else
-  echo "Installed bundle is not signed or signature verification failed." >&2
+  echo "Installed bundle signature verification failed." >&2
+  exit 1
 fi
 
 prepare_pairing
-install_launch_agent
-wait_for_relay
 request_accessibility
+start_background_relay
+wait_for_relay
+verify_relay_identity
+wait_for_relay_accessibility
 print_pairing_qr
 
-cat <<EOF
+if [[ "$REVIEW_MODE" == "1" ]]; then
+  cat <<EOF
 Installed: $APP_PATH
-Background service: $LAUNCH_AGENT_LABEL
+Background process: CmdCmdRelayApp
 Logs: $ERR_LOG
 
 Next:
 1. Open cmd+cmd on iPhone.
 2. In Settings, tap Scan Desktop QR and scan the QR above.
-3. Send AppShots to Codex Desktop.
+3. Send a screenshot. This Mac opens the local Review Inbox.
 EOF
+else
+  cat <<EOF
+Installed: $APP_PATH
+Background process: CmdCmdRelayApp
+Logs: $ERR_LOG
+
+Next:
+1. Open cmd+cmd on iPhone.
+2. In Settings, tap Scan Desktop QR and scan the QR above.
+3. Send screenshots to Codex Desktop.
+EOF
+fi

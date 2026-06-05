@@ -15,7 +15,7 @@ enum AppshotSendFeedbackPhase: Equatable {
         case .sending:
             "Sending to Codex"
         case .sent:
-            "AppShot sent to Codex"
+            "Screenshot sent to Codex"
         case .failed:
             "Could not send"
         }
@@ -160,7 +160,7 @@ struct AppshotCaptureFeedbackView: View {
     var settingsActionTitle = "Open Settings"
 
     var body: some View {
-        statusPanel
+        feedbackContent
             .frame(maxWidth: phase == .failed ? .infinity : 330, alignment: .center)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: overlayAlignment)
             .padding(.bottom, phase == .failed ? 20 : 0)
@@ -170,6 +170,31 @@ struct AppshotCaptureFeedbackView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var feedbackContent: some View {
+        VStack(spacing: phase == .failed ? 14 : 16) {
+            imagePreview
+            statusPanel
+        }
+    }
+
+    @ViewBuilder
+    private var imagePreview: some View {
+        if let imageData, let image = UIImage(data: imageData) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: phase == .failed ? 430 : 460)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .strokeBorder(.white.opacity(0.36), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.16), radius: 22, x: 0, y: 14)
+                .accessibilityHidden(true)
+        }
     }
 
     private var statusPanel: some View {
@@ -242,7 +267,7 @@ struct AppshotCaptureFeedbackView: View {
             return nil
         }
 
-        for prefix in ["Codex Desktop attach failed: ", "Could not send AppShot: "] {
+        for prefix in ["Codex Desktop attach failed: ", "Could not send screenshot: "] {
             if cleaned.range(of: prefix, options: [.caseInsensitive, .anchored]) != nil {
                 cleaned.removeFirst(prefix.count)
                 break

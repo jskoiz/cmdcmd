@@ -6,7 +6,7 @@
 # cmd+cmd
 
 cmd+cmd is a small iPhone companion for sending screenshots plus context into
-Codex Desktop through the visible Appshot flow.
+Codex Desktop.
 
 It includes:
 
@@ -77,8 +77,8 @@ Phone pairing:
 1. Open `cmd+cmd` on iPhone.
 2. Go to Settings and tap `Scan Desktop QR`.
 3. Scan the QR printed by the Mac installer.
-4. Grant macOS Accessibility permission so the relay can paste into Codex
-   Desktop.
+4. Grant macOS Accessibility permission so the relay can attach screenshots
+   and context files to Codex Desktop.
 
 Release build:
 
@@ -97,8 +97,8 @@ The repo includes two relay implementations:
 - `relay/`: the Node.js developer relay for local testing and protocol work.
 
 Both relays receive the app payload, save the screenshot and metadata to a
-local inbox, open the screenshot on the Mac, copy it to the pasteboard, activate
-Codex Desktop, and paste the image into the visible composer.
+local inbox, activate Codex Desktop, and attach the screenshot plus a `.txt`
+context sidecar to the visible composer.
 
 The iOS app polls the relay status URL after upload so it can distinguish a
 queued receipt from a Codex Desktop attachment or a delivery failure.

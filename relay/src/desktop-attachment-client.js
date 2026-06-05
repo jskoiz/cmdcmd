@@ -8,11 +8,10 @@ const MAX_OCR_ATTACHMENT_CHARS = 1200;
 const IGNORED_OCR_STATUS_LINES = new Set(["phone"]);
 const ALLOWED_OCR_SYMBOLS = new Set(".,:;!?%+#@&()/-");
 
-export class DesktopAppshotClient {
+export class DesktopAttachmentClient {
   constructor(config, options = {}) {
     this.config = config;
     this.logger = options.logger ?? console;
-    this.openCommand = options.openCommand ?? "/usr/bin/open";
     this.runCommand = options.runCommand ?? runCommand;
     this.desktopHelperCommand = options.desktopHelperCommand;
     this.ensureDesktopHelper = options.ensureDesktopHelper ?? ensureDesktopHelper;
@@ -20,42 +19,34 @@ export class DesktopAppshotClient {
 
   async deliver(capture, stored) {
     const startedAt = Date.now();
-    const appshot = this.config.appshot;
+    const desktopAttachment = this.config.desktopAttachment;
 
-    logInfo(this.logger, "desktop_appshot.delivery_started", {
+    logInfo(this.logger, "desktop_attachment.delivery_started", {
       captureId: capture.captureId,
       imagePath: stored.imagePath,
-      openImageInViewer: appshot.openImageInViewer,
-      viewerBundle: appshot.openImageInViewer ? appshot.viewerBundle : null
+      codexBundle: desktopAttachment.codexBundle
     });
-
-    if (appshot.openImageInViewer) {
-      await this.runCommand(
-        this.openCommand,
-        ["-g", "-j", "-b", appshot.viewerBundle, stored.imagePath],
-        { timeoutMs: appshot.openTimeoutMs }
-      );
-      await delay(appshot.openDelayMs);
-    }
 
     const helperCommand =
       this.desktopHelperCommand ??
       (await this.ensureDesktopHelper({
         runCommand: this.runCommand
       }));
-    const textPath = await writeAttachmentTextIfNeeded(
+    const contextPath = await writeAttachmentTextIfNeeded(
       stored.metadataPath,
       buildDesktopAttachmentText(capture)
     );
     const helperResult = await this.runCommand(
       helperCommand,
-      buildDesktopHelperArgs(stored.imagePath, appshot, { textPath }),
-      { timeoutMs: appshot.pasteTimeoutMs }
+      buildDesktopHelperArgs(stored.imagePath, desktopAttachment, {
+        contextPath
+      }),
+      { timeoutMs: desktopAttachment.pasteTimeoutMs }
     );
 
-    logInfo(this.logger, "desktop_appshot.delivery_completed", {
+    logInfo(this.logger, "desktop_attachment.delivery_completed", {
       captureId: capture.captureId,
-      codexBundle: appshot.codexBundle,
+      codexBundle: desktopAttachment.codexBundle,
       helperCommand,
       stdout: helperResult.stdout || null,
       stderr: helperResult.stderr || null,
@@ -64,33 +55,29 @@ export class DesktopAppshotClient {
 
     return {
       status: "delivered",
-      deliveryLane: "desktop-appshot",
-      message: "AppShot sent to Codex",
+      deliveryLane: "desktop-attachment",
+      message: "Screenshot sent to Codex",
       imagePath: stored.imagePath,
       metadataPath: stored.metadataPath,
-      targetBundle: appshot.codexBundle
+      targetBundle: desktopAttachment.codexBundle
     };
   }
 }
 
-export function buildDesktopHelperArgs(imagePath, appshot, options = {}) {
+export function buildDesktopHelperArgs(imagePath, desktopAttachment, options = {}) {
   const args = [
     "--image-path",
     imagePath,
     "--codex-bundle",
-    appshot.codexBundle,
+    desktopAttachment.codexBundle,
     "--focus-delay-ms",
-    String(appshot.pasteDelayMs),
+    String(desktopAttachment.pasteDelayMs),
     "--composer-bottom-offset",
     "70"
   ];
 
-  if (options.textPath) {
-    args.push("--text-path", options.textPath);
-  }
-
-  if (appshot.openImageInViewer && appshot.closeViewerWindow) {
-    args.push("--viewer-bundle", appshot.viewerBundle, "--close-viewer");
+  if (options.contextPath) {
+    args.push("--context-path", options.contextPath);
   }
 
   return args;
@@ -541,8 +528,4 @@ function runCommand(command, args, options) {
 
 function trimmedOutput(value) {
   return value.trim().slice(0, 2000);
-}
-
-function delay(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
