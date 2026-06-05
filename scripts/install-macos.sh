@@ -6,7 +6,12 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/Applications}"
 APP_PATH="$INSTALL_DIR/$APP_NAME"
 RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://github.com/jskoiz/CodexShot/releases/latest/download}"
 ARCHIVE_NAME="CmdCmdRelay-macOS.zip"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
+if [[ -n "$SCRIPT_SOURCE" && "$SCRIPT_SOURCE" != bash ]]; then
+  ROOT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
+else
+  ROOT_DIR="$(pwd)"
+fi
 LOCAL_ARCHIVE="$ROOT_DIR/dist/cmdcmd-relay/$ARCHIVE_NAME"
 TMP_DIR="$(mktemp -d)"
 
