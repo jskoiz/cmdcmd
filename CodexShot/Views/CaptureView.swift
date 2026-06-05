@@ -11,6 +11,7 @@ private let captureViewLogger = Logger(
 
 struct CaptureView: View {
     @Bindable var store: CaptureStore
+    @Environment(\.colorScheme) private var colorScheme
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var imageData: Data?
     @State private var imageMetadata: CaptureImageMetadata = .empty
@@ -69,6 +70,9 @@ struct CaptureView: View {
 
         return VStack(alignment: .leading, spacing: 16) {
             header
+
+            Spacer(minLength: 0)
+
             screenshotPanel(height: panelHeight)
 
             if feedbackPhase == nil, !statusText.isEmpty {
@@ -79,6 +83,8 @@ struct CaptureView: View {
                     .padding(.top, -2)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
+
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
         .frame(height: height, alignment: .top)
@@ -87,16 +93,11 @@ struct CaptureView: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            HStack(spacing: 6) {
-                Image(systemName: "command")
-                Text("+")
-                Image(systemName: "command")
-            }
-            .font(.system(size: 29, weight: .bold, design: .rounded))
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
-            .accessibilityLabel("cmd plus cmd")
+            Image(colorScheme == .dark ? "CmdCmdLogoDark" : "CmdCmdLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 77, height: 26, alignment: .leading)
+                .accessibilityLabel("cmd plus cmd")
 
             Spacer()
         }
@@ -154,23 +155,11 @@ struct CaptureView: View {
     }
 
     private var sendButton: some View {
-        let showsInlineProgress = isSending && feedbackPhase == nil
-
-        return HeroSendButton(isBusy: isSending) {
+        HeroSendButton(isBusy: isSending) {
             Task { await sendSelectedImage() }
         } label: {
-            HStack(spacing: 10) {
-                if showsInlineProgress {
-                    ProgressView()
-                        .tint(.white)
-                        .controlSize(.small)
-                } else if !isSending {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                }
-                Text(isSending ? "Sending…" : "⌘+⌘")
-                    .font(.headline.weight(.semibold))
-            }
+            Text(isSending ? "Sending…" : "⌘+⌘")
+                .font(.headline.weight(.semibold))
         }
         .disabled(isSending)
     }

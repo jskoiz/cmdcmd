@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="CodexShot/Resources/Assets.xcassets/CmdCmdLogoDark.imageset/logo-dark.png">
+  <img alt="cmd+cmd" src="CodexShot/Resources/Assets.xcassets/CmdCmdLogo.imageset/logo.png" width="220">
+</picture>
+
 # cmd+cmd
 
 cmd+cmd is a small iPhone companion for sending screenshots plus context into
