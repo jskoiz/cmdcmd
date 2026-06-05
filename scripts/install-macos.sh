@@ -10,6 +10,7 @@ LAUNCH_AGENT_PLIST="$HOME/Library/LaunchAgents/$LAUNCH_AGENT_LABEL.plist"
 LOG_DIR="$HOME/Library/Logs"
 OUT_LOG="$LOG_DIR/cmdcmd-relay.log"
 ERR_LOG="$LOG_DIR/cmdcmd-relay.err.log"
+RELAY_HEALTH_URL="http://127.0.0.1:8787/healthz"
 RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://github.com/jskoiz/cmdcmd/releases/latest/download}"
 ARCHIVE_NAME="CmdCmdRelay-macOS.zip"
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
@@ -97,6 +98,7 @@ prepare_pairing() {
   fi
 
   "$RELAY_EXECUTABLE" --prepare-pairing
+  RELAY_HEALTH_URL="$("$RELAY_EXECUTABLE" --print-health-url)"
 }
 
 install_launch_agent() {
@@ -134,13 +136,13 @@ PLIST
 
 wait_for_relay() {
   for _ in {1..40}; do
-    if curl -fsS "http://127.0.0.1:8787/healthz" | grep -q "cmdcmd-native"; then
+    if curl -fsS "$RELAY_HEALTH_URL" 2>/dev/null | grep -q "cmdcmd-native"; then
       return 0
     fi
     sleep 0.25
   done
 
-  echo "Relay did not become reachable on http://127.0.0.1:8787/healthz." >&2
+  echo "Relay did not become reachable on $RELAY_HEALTH_URL." >&2
   echo "Recent relay log:" >&2
   if [[ -f "$ERR_LOG" ]]; then
     tail -n 20 "$ERR_LOG" >&2 || true

@@ -23,6 +23,12 @@ enum TerminalRelayCommand {
             return true
         }
 
+        if options.contains("--print-health-url") {
+            let settings = RelaySettingsStore.load()
+            print("http://127.0.0.1:\(settings.port)/healthz")
+            return true
+        }
+
         if options.contains("--accessibility-status") {
             exitAfterAccessibilityCheck(prompt: false)
         }
@@ -46,6 +52,7 @@ enum TerminalRelayCommand {
           CmdCmdRelayApp --serve
           CmdCmdRelayApp --prepare-pairing
           CmdCmdRelayApp --print-pairing-qr
+          CmdCmdRelayApp --print-health-url
           CmdCmdRelayApp --request-accessibility
 
         The installer starts the relay in the background and prints the iPhone

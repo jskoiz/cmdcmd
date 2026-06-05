@@ -92,8 +92,9 @@ LAUNCH_AGENT_PLIST=&quot;$HOME/Library/LaunchAgents/$LAUNCH_AGENT_LABEL.plist&qu
 LOG_DIR=&quot;$HOME/Library/Logs&quot;
 OUT_LOG=&quot;$LOG_DIR/cmdcmd-relay.log&quot;
 ERR_LOG=&quot;$LOG_DIR/cmdcmd-relay.err.log&quot;
+RELAY_HEALTH_URL=&quot;http://127.0.0.1:8787/healthz&quot;
 RELEASE_BASE_URL=&quot;${CMDCMD_RELAY_RELEASE_URL:-https://cmd.avmil.xyz/dl}&quot;
-ARCHIVE_NAME=&quot;${CMDCMD_RELAY_ARCHIVE_NAME:-CmdCmdRelay-macOS-20260605-1.zip}&quot;
+ARCHIVE_NAME=&quot;${CMDCMD_RELAY_ARCHIVE_NAME:-CmdCmdRelay-macOS-20260605-2.zip}&quot;
 SCRIPT_SOURCE=&quot;${BASH_SOURCE[0]:-}&quot;
 if [[ -n &quot;$SCRIPT_SOURCE&quot; &amp;&amp; &quot;$SCRIPT_SOURCE&quot; != bash ]]; then
   ROOT_DIR=&quot;$(cd &quot;$(dirname &quot;$SCRIPT_SOURCE&quot;)/..&quot; &amp;&amp; pwd)&quot;
@@ -179,6 +180,7 @@ prepare_pairing() {
   fi
 
   &quot;$RELAY_EXECUTABLE&quot; --prepare-pairing
+  RELAY_HEALTH_URL=&quot;$(&quot;$RELAY_EXECUTABLE&quot; --print-health-url)&quot;
 }
 
 install_launch_agent() {
@@ -216,13 +218,13 @@ PLIST
 
 wait_for_relay() {
   for _ in {1..40}; do
-    if curl -fsS &quot;http://127.0.0.1:8787/healthz&quot; | grep -q &quot;cmdcmd-native&quot;; then
+    if curl -fsS &quot;$RELAY_HEALTH_URL&quot; 2&gt;/dev/null | grep -q &quot;cmdcmd-native&quot;; then
       return 0
     fi
     sleep 0.25
   done
 
-  echo &quot;Relay did not become reachable on http://127.0.0.1:8787/healthz.&quot; &gt;&amp;2
+  echo &quot;Relay did not become reachable on $RELAY_HEALTH_URL.&quot; &gt;&amp;2
   echo &quot;Recent relay log:&quot; &gt;&amp;2
   if [[ -f &quot;$ERR_LOG&quot; ]]; then
     tail -n 20 &quot;$ERR_LOG&quot; &gt;&amp;2 || true
