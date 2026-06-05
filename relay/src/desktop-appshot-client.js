@@ -60,7 +60,7 @@ export class DesktopAppshotClient {
     return {
       status: "delivered",
       deliveryLane: "desktop-appshot",
-      message: "Attached phone screenshot in the frontmost Codex chat",
+      message: "AppShot sent to Codex",
       imagePath: stored.imagePath,
       metadataPath: stored.metadataPath,
       targetBundle: appshot.codexBundle

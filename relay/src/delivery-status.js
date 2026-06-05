@@ -8,7 +8,7 @@ export function createDeliveryStatusStore(options = {}) {
     accept(capture, stored, requestId) {
       return write(capture.captureId, {
         status: "accepted",
-        message: "Queued for the frontmost Codex chat",
+        message: "AppShot queued for Codex",
         requestId,
         imagePath: stored.imagePath,
         metadataPath: stored.metadataPath,
@@ -19,7 +19,7 @@ export function createDeliveryStatusStore(options = {}) {
     deliver(captureId) {
       return write(captureId, {
         status: "delivering",
-        message: "Attaching to the frontmost Codex chat"
+        message: "Sending AppShot to Codex"
       });
     },
 
@@ -28,7 +28,7 @@ export function createDeliveryStatusStore(options = {}) {
         status: "delivered",
         message:
           delivery.message ??
-          "Attached phone screenshot in the frontmost Codex chat",
+          "AppShot sent to Codex",
         deliveryLane: delivery.deliveryLane ?? null
       });
     },
@@ -36,7 +36,7 @@ export function createDeliveryStatusStore(options = {}) {
     fail(captureId, error) {
       return write(captureId, {
         status: "failed",
-        message: `Codex Desktop attach failed: ${truncate(error.message)}`,
+        message: `Could not send AppShot: ${truncate(error.message)}`,
         error: truncate(error.message)
       });
     },

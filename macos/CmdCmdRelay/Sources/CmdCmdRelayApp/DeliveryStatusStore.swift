@@ -16,7 +16,7 @@ final class DeliveryStatusStore {
             DeliveryStatus(
                 captureId: captureId,
                 status: "accepted",
-                message: "Queued for the frontmost Codex chat",
+                message: "AppShot queued for Codex",
                 deliveryLane: "desktop-appshot"
             )
         )
@@ -27,7 +27,7 @@ final class DeliveryStatusStore {
             DeliveryStatus(
                 captureId: captureId,
                 status: "delivering",
-                message: "Attaching to the frontmost Codex chat",
+                message: "Sending AppShot to Codex",
                 deliveryLane: "desktop-appshot"
             )
         )
@@ -38,7 +38,7 @@ final class DeliveryStatusStore {
             DeliveryStatus(
                 captureId: captureId,
                 status: "delivered",
-                message: "Attached phone screenshot in the frontmost Codex chat",
+                message: "AppShot sent to Codex",
                 deliveryLane: "desktop-appshot"
             )
         )
@@ -49,7 +49,7 @@ final class DeliveryStatusStore {
             DeliveryStatus(
                 captureId: captureId,
                 status: "failed",
-                message: "Codex Desktop attach failed: \(Self.truncate(error.localizedDescription))",
+                message: "Could not send AppShot: \(Self.truncate(error.localizedDescription))",
                 deliveryLane: "desktop-appshot"
             )
         )

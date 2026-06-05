@@ -156,12 +156,16 @@ enum CapturePipeline {
         return record
     }
 
+    static var deliveredStatusMessage: String {
+        "AppShot sent to Codex"
+    }
+
     private static func queuedMessage() -> String {
-        "Queued for the frontmost Codex chat"
+        "AppShot queued for Codex"
     }
 
     private static func unconfirmedDeliveryMessage() -> String {
-        "Relay accepted the capture, but desktop delivery was not confirmed. Check Codex Desktop and the Mac relay, then try again."
+        "AppShot reached the relay, but Codex delivery was not confirmed. Check Codex Desktop and the Mac relay, then try again."
     }
 
     private static func userFacingFailureMessage(for error: Error, settings: RelaySettings) -> String {
@@ -206,7 +210,7 @@ enum CapturePipeline {
         switch deliveryStatus.status {
         case "delivered":
             record.status = .sent
-            record.statusMessage = deliveryStatus.message
+            record.statusMessage = deliveredStatusMessage
         case "failed":
             record.status = .failed
             record.statusMessage = deliveryStatus.message

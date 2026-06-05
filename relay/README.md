@@ -88,10 +88,10 @@ Poll `GET /v1/captures/{captureId}/status` with the same bearer token to read
 `accepted`, `delivering`, `delivered`, or `failed` state. The phone displays the
 relay messages, including:
 
-- `Queued for the frontmost Codex chat`
-- `Attaching to the frontmost Codex chat`
-- `Attached phone screenshot in the frontmost Codex chat`
-- `Codex Desktop attach failed: ...`
+- `AppShot queued for Codex`
+- `Sending AppShot to Codex`
+- `AppShot sent to Codex`
+- `Could not send AppShot: ...`
 
 Useful optional settings:
 

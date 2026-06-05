@@ -264,7 +264,7 @@ struct CaptureView: View {
             imageMetadata: imageMetadata
         )
         let didSend = record.status == .sent
-        statusText = record.statusMessage
+        statusText = didSend ? CapturePipeline.deliveredStatusMessage : record.statusMessage
         feedbackMessage = didSend ? nil : record.statusMessage
         feedbackPhase = didSend ? .sent : .failed
         AppshotFeedback.shared.playCompletion(success: didSend)

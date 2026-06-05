@@ -37,7 +37,7 @@ enum DesktopDelivery {
     private static func requireAccessibilityTrust() throws {
         guard accessibilityTrusted(prompt: true) else {
             throw RelayHTTPError.server(
-                "Accessibility permission is required to focus Codex and paste the screenshot. Grant Accessibility permission to cmd+cmd Relay, then retry."
+                "Accessibility permission is required on your Mac. Grant it to cmd+cmd Relay, then try again."
             )
         }
     }

@@ -122,7 +122,7 @@ func requireAccessibilityTrust() {
     let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
     let trusted = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
     if !trusted {
-        fail("Accessibility permission is required to focus Codex and paste the screenshot. Grant Accessibility permission to the relay helper or node, then retry.", code: 77)
+        fail("Accessibility permission is required on your Mac. Grant it to the relay helper, then try again.", code: 77)
     }
 }
 
@@ -452,5 +452,5 @@ guard let codex = launchOrActivate(bundleID: config.codexBundle) else {
 Thread.sleep(forTimeInterval: Double(config.focusDelayMs) / 1000.0)
 pasteIntoCodex(app: codex, config: config)
 closeViewerWindow(config: config, codex: codex)
-print("Attached image and OCR text to the frontmost Codex chat.")
+print("AppShot sent to Codex.")
 `;

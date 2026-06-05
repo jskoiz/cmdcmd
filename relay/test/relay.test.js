@@ -68,7 +68,7 @@ test("deliverPayload validates, stores, and queues Codex Desktop delivery", asyn
         return {
           status: "delivered",
           deliveryLane: "desktop-appshot",
-          message: "Attached phone screenshot in the frontmost Codex chat"
+          message: "AppShot sent to Codex"
         };
       }
     }
@@ -172,7 +172,7 @@ test("DesktopAppshotClient opens the screenshot hidden when viewer is enabled", 
   assert.equal(result.deliveryLane, "desktop-appshot");
   assert.equal(
     result.message,
-    "Attached phone screenshot in the frontmost Codex chat"
+    "AppShot sent to Codex"
   );
   assert.equal(result.targetBundle, "com.openai.codex");
   const textPath = path.join(tempDir, "metadata.txt");
@@ -329,17 +329,17 @@ test("delivery status reports Codex Desktop progress honestly", () => {
   };
 
   const accepted = store.accept(capture, stored, "req_test");
-  assert.equal(accepted.message, "Queued for the frontmost Codex chat");
+  assert.equal(accepted.message, "AppShot queued for Codex");
 
   const delivering = store.deliver(capture.captureId);
-  assert.equal(delivering.message, "Attaching to the frontmost Codex chat");
+  assert.equal(delivering.message, "Sending AppShot to Codex");
 
   const delivered = store.complete(capture.captureId, {
     deliveryLane: "desktop-appshot"
   });
   assert.equal(
     delivered.message,
-    "Attached phone screenshot in the frontmost Codex chat"
+    "AppShot sent to Codex"
   );
 });
 
@@ -359,7 +359,7 @@ test("createServer requires bearer auth for capture posts", async (t) => {
         return {
           status: "delivered",
           deliveryLane: "desktop-appshot",
-          message: "Attached phone screenshot in the frontmost Codex chat"
+          message: "AppShot sent to Codex"
         };
       }
     },
@@ -447,7 +447,7 @@ test("createServer exposes authenticated delivery status until completion", asyn
         return {
           status: "delivered",
           deliveryLane: "desktop-appshot",
-          message: "Attached phone screenshot in the frontmost Codex chat"
+          message: "AppShot sent to Codex"
         };
       }
     },
@@ -488,7 +488,7 @@ test("createServer exposes authenticated delivery status until completion", asyn
   );
   assert.equal(
     deliveredBody.message,
-    "Attached phone screenshot in the frontmost Codex chat"
+    "AppShot sent to Codex"
   );
   assert.equal(deliveredBody.deliveryLane, "desktop-appshot");
 });

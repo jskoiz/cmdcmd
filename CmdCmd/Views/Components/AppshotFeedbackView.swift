@@ -15,7 +15,7 @@ enum AppshotSendFeedbackPhase: Equatable {
         case .sending:
             "Sending to Codex"
         case .sent:
-            "Sent"
+            "AppShot sent to Codex"
         case .failed:
             "Could not send"
         }
@@ -26,7 +26,7 @@ enum AppshotSendFeedbackPhase: Equatable {
         case .preparing:
             "sparkle"
         case .sending:
-            "arrow.up"
+            "paperplane.fill"
         case .sent:
             "checkmark"
         case .failed:
@@ -159,93 +159,23 @@ struct AppshotCaptureFeedbackView: View {
     var openSettings: (() -> Void)?
     var settingsActionTitle = "Open Settings"
 
-    @State private var expanded = false
-
     var body: some View {
-        let metrics = layoutMetrics
-
-        VStack(spacing: phase == .failed ? 10 : 10) {
-            snapshot(width: metrics.previewWidth, height: metrics.previewHeight)
-            statusLine
-                .frame(width: metrics.statusWidth)
-        }
-        .frame(width: metrics.cardWidth)
-        .scaleEffect(expanded ? 1 : 0.04, anchor: .center)
-        .opacity(expanded ? 1 : 0)
-        .animation(.spring(response: 0.35, dampingFraction: 0.73).delay(0.15), value: expanded)
-        .animation(.spring(response: 0.28, dampingFraction: 0.78), value: phase)
-        .onAppear {
-            AppshotFeedback.shared.prepare()
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.73).delay(0.15)) {
-                expanded = true
+        statusPanel
+            .frame(maxWidth: phase == .failed ? .infinity : 330, alignment: .center)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: overlayAlignment)
+            .padding(.bottom, phase == .failed ? 20 : 0)
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .onAppear {
+                AppshotFeedback.shared.prepare()
             }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(phase.title)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibilityLabel)
     }
 
-    private var previewImage: UIImage? {
-        guard let imageData else {
-            return nil
-        }
-        return UIImage(data: imageData)
-    }
-
-    private var previewAspectRatio: CGFloat {
-        guard let previewImage else {
-            return 19.5 / 9
-        }
-
-        let rawRatio = previewImage.size.height / max(previewImage.size.width, 1)
-        return min(max(rawRatio, 0.72), 2.35)
-    }
-
-    private var layoutMetrics: (cardWidth: CGFloat, previewWidth: CGFloat, previewHeight: CGFloat, statusWidth: CGFloat) {
-        let screen = UIScreen.main.bounds.size
-        let cardWidth = min(max(screen.width - 64, 280), 320)
-        let maxPreviewWidth = cardWidth - 42
-        let maxPreviewHeight = min(max(screen.height * 0.54, 360), 480)
-
-        var previewWidth = maxPreviewWidth
-        var previewHeight = previewWidth * previewAspectRatio
-
-        if previewHeight > maxPreviewHeight {
-            previewHeight = maxPreviewHeight
-            previewWidth = previewHeight / previewAspectRatio
-        }
-
-        return (cardWidth, previewWidth, previewHeight, cardWidth)
-    }
-
-    private func snapshot(width: CGFloat, height: CGFloat) -> some View {
-        ZStack(alignment: .bottomTrailing) {
-            if let previewImage {
-                Image(uiImage: previewImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: width, height: height)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            } else {
-                Image(systemName: "photo")
-                    .font(.system(size: 34, weight: .medium))
-                    .foregroundStyle(.secondary.opacity(0.76))
-            }
-
-            if !phase.isWorking {
-                phaseBadge
-                    .padding(9)
-            }
-        }
-        .frame(width: width, height: height)
-        .clipped()
-    }
-
-    @ViewBuilder
-    private var statusLine: some View {
-        if phase.isWorking {
-            HStack(spacing: 8) {
-                CommandSymbolMark(size: 17, tint: Theme.brand)
-                    .frame(width: 44, height: 18)
+    private var statusPanel: some View {
+        VStack(alignment: .leading, spacing: phase == .failed ? 8 : 0) {
+            HStack(alignment: .center, spacing: 10) {
+                statusIcon
 
                 Text(phase.title)
                     .font(.subheadline.weight(.semibold))
@@ -253,110 +183,92 @@ struct AppshotCaptureFeedbackView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
             }
-            .frame(maxWidth: .infinity, alignment: .center)
-        } else {
-            statusContent
-        }
-    }
+            .frame(maxWidth: .infinity, alignment: phase == .failed ? .leading : .center)
 
-    @ViewBuilder
-    private var statusContent: some View {
-        if phase == .failed, let openSettings {
-            Button(action: openSettings) {
-                failureStatusContent
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens settings")
-        } else if phase == .failed {
-            failureStatusContent
-        } else {
-            completionStatusContent
-        }
-    }
-
-    private var completionStatusContent: some View {
-        HStack(alignment: .center, spacing: 10) {
-            statusIcon
-
-            Text(phase.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .contentShape(Rectangle())
-    }
-
-    private var failureStatusContent: some View {
-        HStack(alignment: .top, spacing: 10) {
-            statusIcon
-                .padding(.top, 1)
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(phase.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                if let message, !message.isEmpty {
-                    Text(message)
+            if phase == .failed {
+                if let displayMessage {
+                    Text(displayMessage)
                         .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondaryText)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(4)
+                        .lineLimit(5)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if openSettings != nil {
-                    Text(settingsActionTitle)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(phase.accent)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .padding(.top, 1)
+                if let openSettings {
+                    Button(action: openSettings) {
+                        Text(settingsActionTitle)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(phase.accent)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens settings")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, phase == .failed ? 18 : 16)
+        .padding(.vertical, phase == .failed ? 16 : 13)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(panelFill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(.white.opacity(0.18), lineWidth: 1)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private var statusIcon: some View {
-        Image(systemName: phase.symbolName)
-            .font(.system(size: 12, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(width: 18, height: 18)
-            .background(phase.accent, in: Circle())
+        .shadow(color: .black.opacity(0.18), radius: 18, x: 0, y: 10)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     @ViewBuilder
-    private var phaseBadge: some View {
-        let content = Group {
-            Image(systemName: phase.symbolName)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(phase.accent)
-        }
-        .frame(width: 44, height: 44)
-        .contentShape(Circle())
-
-        if phase == .failed, let openSettings {
-            Button(action: openSettings) {
-                content
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open settings")
+    private var statusIcon: some View {
+        if phase.isWorking {
+            ProgressView()
+                .tint(phase.accent)
+                .controlSize(.small)
+                .frame(width: 22, height: 22)
         } else {
-            content
+            Image(systemName: phase.symbolName)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(phase.accent, in: Circle())
         }
+    }
+
+    private var displayMessage: String? {
+        guard var cleaned = message?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !cleaned.isEmpty else {
+            return nil
+        }
+
+        for prefix in ["Codex Desktop attach failed: ", "Could not send AppShot: "] {
+            if cleaned.range(of: prefix, options: [.caseInsensitive, .anchored]) != nil {
+                cleaned.removeFirst(prefix.count)
+                break
+            }
+        }
+        return cleaned
+    }
+
+    private var accessibilityLabel: String {
+        if let displayMessage {
+            return "\(phase.title). \(displayMessage)"
+        }
+        return phase.title
+    }
+
+    private var overlayAlignment: Alignment {
+        phase == .failed ? .bottom : .center
+    }
+
+    private var panelFill: Color {
+        Color(uiColor: UIColor { traits in
+            if traits.userInterfaceStyle == .dark {
+                return UIColor(red: 0.13, green: 0.13, blue: 0.14, alpha: 0.96)
+            }
+            return UIColor.white.withAlphaComponent(0.96)
+        })
     }
 
 }
