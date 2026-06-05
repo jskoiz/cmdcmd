@@ -70,9 +70,12 @@ When a capture arrives, the relay saves the image, opens it in the configured
 Mac viewer, waits briefly for that window to become available, then runs the
 native desktop helper. The helper copies the image to the pasteboard, activates
 Codex Desktop, focuses the frontmost visible composer, pastes the image, then
-pastes a text block containing the phone context and OCR text when present. If
-viewer cleanup is enabled, it closes the matching Preview window after the
-attach. The capture response is an immediate
+pastes a text block containing structured screenshot context, optional phone
+context, and OCR text when present. The screenshot context includes capture and
+preparation times, image dimensions and byte sizes, OCR duration/confidence, and
+an inferred visible app when OCR evidence is strong enough. If viewer cleanup is
+enabled, it closes the matching Preview window after the attach. The capture
+response is an immediate
 `202 Accepted` receipt with the stored image path, metadata sidecar path, and
 `statusUrl`.
 
@@ -105,4 +108,5 @@ In cmd+cmd Settings:
   trusted private URL for a physical phone.
 - Bearer token: the exact value of `CODEXSHOT_RELAY_TOKEN`.
 - Default context and OCR settings: optional context that is sent with each
-  screenshot.
+  screenshot. OCR-enabled captures also send timing, confidence, line count, and
+  visible-app inference metadata.

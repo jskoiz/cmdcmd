@@ -35,6 +35,7 @@ function metadataFor(capture, imagePath) {
     createdAt: capture.createdAt,
     source: capture.source,
     sourceDetail: capture.sourceDetail,
+    screenshotContext: capture.screenshotContext,
     context: capture.context,
     recognizedText: capture.recognizedText,
     imageFilename: capture.imageFilename,

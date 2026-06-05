@@ -14,11 +14,35 @@ import { deliverPayload } from "../src/relay.js";
 import { createServer } from "../src/server.js";
 
 const samplePayload = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   captureId: "22222222-2222-4222-8222-222222222222",
   createdAt: "2026-06-04T12:00:00.000Z",
   source: "shortcut",
   sourceDetail: "Unit test",
+  screenshotContext: {
+    capturedAt: "2026-06-04T12:00:00.000Z",
+    preparedAt: "2026-06-04T12:00:01.000Z",
+    timeZoneIdentifier: "UTC",
+    source: "shortcut",
+    sourceDetail: "Unit test",
+    imageFilename: "../unsafe name.png",
+    imageMimeType: "image/png",
+    pixelWidth: 8,
+    pixelHeight: 8,
+    originalImageBytes: 176,
+    uploadImageBytes: 176,
+    ocrEnabled: true,
+    ocrDurationMs: 412,
+    ocrLineCount: 1,
+    ocrCharacterCount: 19,
+    ocrTimedOut: false,
+    ocrAverageConfidence: 0.89,
+    visibleApp: {
+      name: "Photos",
+      confidence: "high",
+      evidence: ["Library", "Collections", "Syncing Paused"]
+    }
+  },
   context: "Please review the screenshot.",
   recognizedText: "OCR from screenshot",
   imageFilename: "../unsafe name.png",
@@ -64,6 +88,7 @@ test("deliverPayload validates, stores, and queues Codex Desktop delivery", asyn
 
   const metadata = JSON.parse(await fs.readFile(result.metadataPath, "utf8"));
   assert.equal(metadata.captureId, samplePayload.captureId);
+  assert.deepEqual(metadata.screenshotContext, samplePayload.screenshotContext);
   assert.equal(metadata.imagePath, result.imagePath);
 });
 
@@ -153,7 +178,22 @@ test("DesktopAppshotClient opens the screenshot and pastes it into Codex", async
   const textPath = path.join(tempDir, "metadata.txt");
   assert.equal(
     await fs.readFile(textPath, "utf8"),
-    "Context:\nPlease review the screenshot.\n\nOCR text:\nOCR from screenshot\n"
+    [
+      "Screenshot context:",
+      "Source: Shortcut - Unit test",
+      "Captured: Jun 04, 2026, 12:00:00 PM UTC",
+      "Prepared: Jun 04, 2026, 12:00:01 PM UTC",
+      "Visible app: Photos (high inference from Library, Collections, Syncing Paused)",
+      "Image: ../unsafe name.png; image/png; 8x8; 176 B",
+      "OCR: 1 line, 19 characters, 412 ms, avg confidence 89%",
+      "",
+      "Context:",
+      "Please review the screenshot.",
+      "",
+      "OCR text:",
+      "OCR from screenshot",
+      ""
+    ].join("\n")
   );
   assert.deepEqual(commands.map(({ command, args }) => [command, args[0]]), [
     ["/usr/bin/open", "-b"],
@@ -211,7 +251,21 @@ test("buildDesktopHelperArgs configures frontmost composer paste", () => {
 test("buildDesktopAttachmentText includes context and OCR", () => {
   assert.equal(
     buildDesktopAttachmentText(samplePayload),
-    "Context:\nPlease review the screenshot.\n\nOCR text:\nOCR from screenshot"
+    [
+      "Screenshot context:",
+      "Source: Shortcut - Unit test",
+      "Captured: Jun 04, 2026, 12:00:00 PM UTC",
+      "Prepared: Jun 04, 2026, 12:00:01 PM UTC",
+      "Visible app: Photos (high inference from Library, Collections, Syncing Paused)",
+      "Image: ../unsafe name.png; image/png; 8x8; 176 B",
+      "OCR: 1 line, 19 characters, 412 ms, avg confidence 89%",
+      "",
+      "Context:",
+      "Please review the screenshot.",
+      "",
+      "OCR text:",
+      "OCR from screenshot"
+    ].join("\n")
   );
   assert.equal(
     buildDesktopAttachmentText({

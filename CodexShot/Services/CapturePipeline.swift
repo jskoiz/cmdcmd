@@ -12,37 +12,65 @@ enum CapturePipeline {
         filename: String = "screenshot.png",
         note: String,
         source: CaptureSource,
-        sourceDetail: String = ""
+        sourceDetail: String = "",
+        imageMetadata: CaptureImageMetadata = .empty
     ) async -> CaptureRecord {
         let startedAt = Date()
         let settings = CaptureRepository.loadSettings()
         let endpointHost = URL(string: settings.endpoint)?.host()
+        let originalPixelSize = ImageProcessor.pixelSize(for: originalImageData)
         capturePipelineLogger.info(
             "submit started source=\(source.rawValue, privacy: .public) originalBytes=\(originalImageData.count, privacy: .public) endpointHost=\(endpointHost ?? "none", privacy: .public) includeOCR=\(settings.includeRecognizedText, privacy: .public) noteChars=\(note.count, privacy: .public)"
         )
 
         let uploadData = ImageProcessor.normalizedUploadData(from: originalImageData)
+        let uploadPixelSize = ImageProcessor.pixelSize(for: uploadData)
+        let uploadMimeType = ImageProcessor.mimeType(for: uploadData, filename: filename)
         capturePipelineLogger.info(
             "image normalized uploadBytes=\(uploadData.count, privacy: .public) elapsedMs=\(elapsedMilliseconds(since: startedAt), privacy: .public)"
         )
 
-        let recognizedText: String
+        let ocrReport: OCRReport
         if settings.includeRecognizedText {
             let ocrStartedAt = Date()
             capturePipelineLogger.info("ocr started uploadBytes=\(uploadData.count, privacy: .public)")
-            recognizedText = await OCRService.recognizedText(from: uploadData)
+            ocrReport = await OCRService.report(from: uploadData)
             capturePipelineLogger.info(
-                "ocr finished recognizedTextChars=\(recognizedText.count, privacy: .public) durationMs=\(elapsedMilliseconds(since: ocrStartedAt), privacy: .public)"
+                "ocr finished recognizedTextChars=\(ocrReport.characterCount, privacy: .public) lines=\(ocrReport.lineCount, privacy: .public) durationMs=\(elapsedMilliseconds(since: ocrStartedAt), privacy: .public)"
             )
         } else {
-            recognizedText = ""
+            ocrReport = .skipped
             capturePipelineLogger.info("ocr skipped")
         }
+        let recognizedText = ocrReport.text
 
         let context = [settings.defaultContext, note]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
+        let pixelWidth = imageMetadata.pixelWidth ?? originalPixelSize?.width ?? uploadPixelSize?.width
+        let pixelHeight = imageMetadata.pixelHeight ?? originalPixelSize?.height ?? uploadPixelSize?.height
+        let visibleApp = VisibleAppInferer.infer(from: recognizedText)
+        let screenshotContext = ScreenshotContext(
+            capturedAt: imageMetadata.capturedAt,
+            preparedAt: .now,
+            timeZoneIdentifier: TimeZone.current.identifier,
+            source: source.rawValue,
+            sourceDetail: sourceDetail,
+            imageFilename: filename,
+            imageMimeType: uploadMimeType,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+            originalImageBytes: originalImageData.count,
+            uploadImageBytes: uploadData.count,
+            ocrEnabled: settings.includeRecognizedText,
+            ocrDurationMs: settings.includeRecognizedText ? ocrReport.durationMs : nil,
+            ocrLineCount: ocrReport.lineCount,
+            ocrCharacterCount: ocrReport.characterCount,
+            ocrTimedOut: ocrReport.timedOut,
+            ocrAverageConfidence: ocrReport.averageConfidence,
+            visibleApp: visibleApp
+        )
 
         var record = CaptureRecord(
             source: source,
@@ -61,15 +89,16 @@ enum CapturePipeline {
         )
 
         let payload = CaptureUploadPayload(
-            schemaVersion: 1,
+            schemaVersion: 2,
             captureId: record.id,
             createdAt: record.createdAt,
             source: source.rawValue,
             sourceDetail: sourceDetail,
+            screenshotContext: screenshotContext,
             context: context,
             recognizedText: recognizedText,
             imageFilename: filename,
-            imageMimeType: ImageProcessor.mimeType(for: uploadData, filename: filename),
+            imageMimeType: uploadMimeType,
             imageBase64: uploadData.base64EncodedString()
         )
 
@@ -142,4 +171,115 @@ enum CapturePipeline {
 
 private func elapsedMilliseconds(since date: Date) -> Int {
     Int(Date().timeIntervalSince(date) * 1000)
+}
+
+private enum VisibleAppInferer {
+    private struct Rule {
+        var name: String
+        var threshold: Int
+        var signals: [String]
+    }
+
+    private struct Match {
+        var rule: Rule
+        var evidence: [String]
+
+        var score: Int {
+            evidence.count
+        }
+    }
+
+    private static let rules = [
+        Rule(name: "Photos", threshold: 3, signals: [
+            "Library",
+            "Collections",
+            "Syncing Paused",
+            "Select",
+            "Albums",
+            "Recents"
+        ]),
+        Rule(name: "Settings", threshold: 2, signals: [
+            "Wi-Fi",
+            "Bluetooth",
+            "Cellular",
+            "Notifications",
+            "General",
+            "Apple Account"
+        ]),
+        Rule(name: "Messages", threshold: 2, signals: [
+            "iMessage",
+            "Text Message",
+            "Messages",
+            "Delivered"
+        ]),
+        Rule(name: "Safari", threshold: 2, signals: [
+            "Search or enter website name",
+            "Reader",
+            "Private",
+            "Tabs"
+        ]),
+        Rule(name: "Mail", threshold: 2, signals: [
+            "Inbox",
+            "Unread",
+            "Flagged",
+            "Compose"
+        ]),
+        Rule(name: "Stripe", threshold: 2, signals: [
+            "Stripe Express",
+            "Payouts",
+            "Payments",
+            "Connect",
+            "Dashboard"
+        ]),
+        Rule(name: "cmd+cmd", threshold: 2, signals: [
+            "Send to Codex",
+            "OCR ready",
+            "Thread hint",
+            "Private relay"
+        ]),
+        Rule(name: "CIRCA", threshold: 2, signals: [
+            "Waiting on CIRCA",
+            "Buyer pays",
+            "Seller tools",
+            "Unlock seller tools"
+        ])
+    ]
+
+    static func infer(from text: String) -> VisibleAppContext? {
+        let normalizedText = normalize(text)
+        guard !normalizedText.isEmpty else {
+            return nil
+        }
+
+        let matches = rules.compactMap { rule -> Match? in
+            let evidence = rule.signals.filter { signal in
+                normalizedText.contains(normalize(signal))
+            }
+            guard evidence.count >= rule.threshold else {
+                return nil
+            }
+            return Match(rule: rule, evidence: evidence)
+        }
+
+        guard let best = matches.sorted(by: { lhs, rhs in
+            if lhs.score == rhs.score {
+                return lhs.rule.threshold > rhs.rule.threshold
+            }
+            return lhs.score > rhs.score
+        }).first else {
+            return nil
+        }
+
+        return VisibleAppContext(
+            name: best.rule.name,
+            confidence: best.score >= best.rule.threshold + 1 ? "high" : "medium",
+            evidence: Array(best.evidence.prefix(4))
+        )
+    }
+
+    private static func normalize(_ value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+    }
 }

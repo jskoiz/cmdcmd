@@ -3,6 +3,14 @@ import UIKit
 import UniformTypeIdentifiers
 
 enum ImageProcessor {
+    static func pixelSize(for data: Data) -> (width: Int, height: Int)? {
+        guard let image = UIImage(data: data), let cgImage = image.cgImage else {
+            return nil
+        }
+
+        return (width: cgImage.width, height: cgImage.height)
+    }
+
     static func mimeType(for data: Data, filename: String = "screenshot.png") -> String {
         if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) {
             return "image/png"
@@ -50,4 +58,3 @@ enum ImageProcessor {
         }
     }
 }
-

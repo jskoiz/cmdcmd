@@ -95,12 +95,66 @@ struct RelaySettings: Codable, Hashable {
     )
 }
 
+struct CaptureImageMetadata: Codable, Hashable {
+    var capturedAt: Date?
+    var pixelWidth: Int?
+    var pixelHeight: Int?
+
+    static let empty = CaptureImageMetadata()
+}
+
+struct OCRReport: Codable, Hashable {
+    var text: String
+    var durationMs: Int
+    var lineCount: Int
+    var characterCount: Int
+    var timedOut: Bool
+    var averageConfidence: Double?
+
+    static let skipped = OCRReport(
+        text: "",
+        durationMs: 0,
+        lineCount: 0,
+        characterCount: 0,
+        timedOut: false,
+        averageConfidence: nil
+    )
+}
+
+struct VisibleAppContext: Codable, Hashable {
+    var name: String
+    var confidence: String
+    var evidence: [String]
+}
+
+struct ScreenshotContext: Codable, Hashable {
+    var capturedAt: Date?
+    var preparedAt: Date
+    var timeZoneIdentifier: String
+    var source: String
+    var sourceDetail: String
+    var imageFilename: String
+    var imageMimeType: String
+    var pixelWidth: Int?
+    var pixelHeight: Int?
+    var originalImageBytes: Int
+    var uploadImageBytes: Int
+    var ocrEnabled: Bool
+    var ocrDurationMs: Int?
+    var ocrLineCount: Int
+    var ocrCharacterCount: Int
+    var ocrTimedOut: Bool
+    var ocrAverageConfidence: Double?
+    var visibleApp: VisibleAppContext?
+}
+
 struct CaptureUploadPayload: Codable {
     var schemaVersion: Int
     var captureId: UUID
     var createdAt: Date
     var source: String
     var sourceDetail: String
+    var screenshotContext: ScreenshotContext
     var context: String
     var recognizedText: String
     var imageFilename: String

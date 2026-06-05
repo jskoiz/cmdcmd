@@ -8,14 +8,39 @@ It includes:
 - A SwiftUI iOS app for endpoint setup, manual screenshot sending, and history.
 - A Share Extension so screenshots can be sent from the system share sheet.
 - An App Intent so Shortcuts can pass an image/file input from Back Tap, Action Button, or a custom shortcut.
-- On-device OCR with Vision before upload.
+- On-device OCR with Vision before upload, including OCR timing and confidence
+  context.
 
 The app sends JSON to the configured relay endpoint:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "source": "shortcut",
+  "screenshotContext": {
+    "capturedAt": "2026-06-04T12:00:00.000Z",
+    "preparedAt": "2026-06-04T12:00:01.000Z",
+    "timeZoneIdentifier": "Pacific/Honolulu",
+    "source": "shortcut",
+    "sourceDetail": "Latest Screenshot",
+    "imageFilename": "IMG_0001.PNG",
+    "imageMimeType": "image/png",
+    "pixelWidth": 1290,
+    "pixelHeight": 2796,
+    "originalImageBytes": 2400000,
+    "uploadImageBytes": 1100000,
+    "ocrEnabled": true,
+    "ocrDurationMs": 842,
+    "ocrLineCount": 24,
+    "ocrCharacterCount": 560,
+    "ocrTimedOut": false,
+    "ocrAverageConfidence": 0.82,
+    "visibleApp": {
+      "name": "Photos",
+      "confidence": "high",
+      "evidence": ["Library", "Collections", "Syncing Paused"]
+    }
+  },
   "context": "user supplied note",
   "recognizedText": "OCR text",
   "imageMimeType": "image/png",

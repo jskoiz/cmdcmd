@@ -93,8 +93,13 @@ export function buildDesktopHelperArgs(imagePath, appshot, options = {}) {
 
 export function buildDesktopAttachmentText(capture) {
   const sections = [];
+  const screenshotContext = formatScreenshotContext(capture.screenshotContext);
   const context = cleanMultiline(capture.context);
   const recognizedText = cleanMultiline(capture.recognizedText);
+
+  if (screenshotContext) {
+    sections.push(`Screenshot context:\n${screenshotContext}`);
+  }
 
   if (context) {
     sections.push(`Context:\n${context}`);
@@ -122,6 +127,190 @@ async function writeAttachmentTextIfNeeded(metadataPath, text) {
 function cleanMultiline(value) {
   return typeof value === "string"
     ? value.replaceAll("\r\n", "\n").replaceAll("\r", "\n").trim()
+    : "";
+}
+
+function formatScreenshotContext(context) {
+  if (!context || typeof context !== "object") {
+    return "";
+  }
+
+  const lines = [];
+  const source = [humanizeSource(context.source), cleanInline(context.sourceDetail)]
+    .filter(Boolean)
+    .join(" - ");
+  if (source) {
+    lines.push(`Source: ${source}`);
+  }
+
+  const capturedAt = formatTimestamp(
+    context.capturedAt,
+    context.timeZoneIdentifier
+  );
+  if (capturedAt) {
+    lines.push(`Captured: ${capturedAt}`);
+  }
+
+  const preparedAt = formatTimestamp(
+    context.preparedAt,
+    context.timeZoneIdentifier
+  );
+  if (preparedAt) {
+    lines.push(`Prepared: ${preparedAt}`);
+  }
+
+  if (context.visibleApp?.name) {
+    const evidence = Array.isArray(context.visibleApp.evidence)
+      ? context.visibleApp.evidence.map(cleanInline).filter(Boolean)
+      : [];
+    const confidence = cleanInline(context.visibleApp.confidence);
+    const suffix = [
+      confidence ? `${confidence} inference` : "inferred",
+      evidence.length > 0 ? `from ${evidence.join(", ")}` : ""
+    ]
+      .filter(Boolean)
+      .join(" ");
+    lines.push(
+      `Visible app: ${cleanInline(context.visibleApp.name)} (${suffix})`
+    );
+  }
+
+  const imageParts = [
+    cleanInline(context.imageFilename),
+    cleanInline(context.imageMimeType),
+    formatDimensions(context.pixelWidth, context.pixelHeight),
+    formatImageBytes(context.originalImageBytes, context.uploadImageBytes)
+  ].filter(Boolean);
+  if (imageParts.length > 0) {
+    lines.push(`Image: ${imageParts.join("; ")}`);
+  }
+
+  if (context.ocrEnabled === false) {
+    lines.push("OCR: off");
+  } else {
+    const ocrParts = [
+      formatCount(context.ocrLineCount, "line"),
+      formatCount(context.ocrCharacterCount, "character"),
+      formatDuration(context.ocrDurationMs),
+      formatConfidence(context.ocrAverageConfidence)
+    ].filter(Boolean);
+    const label = context.ocrTimedOut ? "OCR timed out" : "OCR";
+    lines.push(ocrParts.length > 0 ? `${label}: ${ocrParts.join(", ")}` : label);
+  }
+
+  return lines.join("\n");
+}
+
+function humanizeSource(value) {
+  const source = cleanInline(value);
+  if (source === "mainApp") {
+    return "Main app";
+  }
+  if (source === "shareExtension") {
+    return "Share extension";
+  }
+  if (source === "shortcut") {
+    return "Shortcut";
+  }
+  return source;
+}
+
+function formatTimestamp(value, timeZoneIdentifier) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const options = {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short"
+  };
+  const timeZone = cleanInline(timeZoneIdentifier);
+  if (timeZone) {
+    options.timeZone = timeZone;
+  }
+
+  try {
+    return new Intl.DateTimeFormat("en-US", options).format(date);
+  } catch {
+    return date.toISOString();
+  }
+}
+
+function formatDimensions(width, height) {
+  if (!Number.isInteger(width) || !Number.isInteger(height)) {
+    return "";
+  }
+  return `${width}x${height}`;
+}
+
+function formatImageBytes(originalBytes, uploadBytes) {
+  if (!Number.isInteger(originalBytes) && !Number.isInteger(uploadBytes)) {
+    return "";
+  }
+  if (originalBytes === uploadBytes || !Number.isInteger(uploadBytes)) {
+    return `${formatBytes(originalBytes)}`;
+  }
+  if (!Number.isInteger(originalBytes)) {
+    return `${formatBytes(uploadBytes)} upload`;
+  }
+  return `${formatBytes(originalBytes)} original, ${formatBytes(uploadBytes)} upload`;
+}
+
+function formatBytes(bytes) {
+  if (!Number.isInteger(bytes)) {
+    return "";
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const digits = value >= 10 ? 1 : 2;
+  return `${value.toFixed(digits)} ${units[unitIndex]}`;
+}
+
+function formatCount(value, singularLabel) {
+  if (!Number.isInteger(value)) {
+    return "";
+  }
+  return `${value} ${singularLabel}${value === 1 ? "" : "s"}`;
+}
+
+function formatDuration(milliseconds) {
+  if (!Number.isInteger(milliseconds)) {
+    return "";
+  }
+  if (milliseconds < 1000) {
+    return `${milliseconds} ms`;
+  }
+  return `${(milliseconds / 1000).toFixed(1)} s`;
+}
+
+function formatConfidence(value) {
+  if (typeof value !== "number") {
+    return "";
+  }
+  return `avg confidence ${Math.round(value * 100)}%`;
+}
+
+function cleanInline(value) {
+  return typeof value === "string"
+    ? value.replaceAll(/\s+/g, " ").trim()
     : "";
 }
 
