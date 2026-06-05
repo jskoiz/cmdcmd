@@ -4,7 +4,6 @@ import UIKit
 struct ShareCaptureView: View {
     var loadInput: () async -> SharedCaptureInput
     var finish: () -> Void
-    var cancel: () -> Void
 
     @State private var input = SharedCaptureInput()
     @State private var phase: ShareSendPhase = .loading
@@ -12,106 +11,43 @@ struct ShareCaptureView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 22) {
-                preview
+            VStack(spacing: 14) {
+                Spacer(minLength: 10)
                 statusPanel
                 actionPanel
+                Spacer(minLength: 10)
             }
-            .padding(22)
+            .padding(.horizontal, 22)
+            .padding(.top, 10)
+            .padding(.bottom, 18)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
                 AppBackground()
             }
-            .navigationTitle("cmd+cmd")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: cancel)
-                        .disabled(phase.isWorking)
-                }
-            }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .task {
                 await loadAndSendOnce()
             }
         }
     }
 
-    @ViewBuilder
-    private var preview: some View {
-        if let data = input.imageData, let image = UIImage(data: data) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: 210, maxHeight: 300)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(.white.opacity(0.42), lineWidth: 1)
-                }
-                .shadow(color: .black.opacity(0.16), radius: 18, x: 0, y: 12)
-        } else {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-                .frame(width: 210, height: 260)
-                .overlay {
-                    Image(systemName: "photo")
-                        .font(.system(size: 42, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-        }
-    }
-
     private var statusPanel: some View {
-        GlassPanel(tint: .black.opacity(0.04), cornerRadius: 22, padding: 18) {
-            VStack(spacing: 12) {
-                phaseSymbol
-                Text(phase.title)
-                    .font(.headline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-
-                if let message = phase.message {
-                    Text(message)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.82)
-                }
-            }
-            .frame(maxWidth: .infinity)
-        }
-    }
-
-    @ViewBuilder
-    private var phaseSymbol: some View {
-        switch phase {
-        case .loading, .sending:
-            ProgressView()
-                .controlSize(.large)
-        case .sent:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 38, weight: .semibold))
-                .foregroundStyle(.green)
-        case .failed:
-            Image(systemName: "exclamationmark.circle.fill")
-                .font(.system(size: 38, weight: .semibold))
-                .foregroundStyle(.orange)
-        }
+        AppshotCaptureFeedbackView(
+            phase: phase.feedbackPhase,
+            imageData: input.imageData,
+            message: phase.feedbackMessage
+        )
     }
 
     @ViewBuilder
     private var actionPanel: some View {
         if phase.canRetry {
             HStack(spacing: 12) {
-                SecondaryGlassButton(action: finish) {
-                    Text("Close")
-                        .frame(maxWidth: .infinity)
-                }
-
-                PrimaryGlassButton {
+                ShareActionButton(title: "Close", style: .secondary, action: finish)
+                ShareActionButton(title: "Try Again", style: .primary) {
                     Task { await send(input) }
-                } label: {
-                    Text("Try Again")
-                        .frame(maxWidth: .infinity)
                 }
             }
         }
@@ -131,10 +67,12 @@ struct ShareCaptureView: View {
     private func send(_ input: SharedCaptureInput) async {
         guard let data = input.imageData else {
             phase = .failed("No image was shared.")
+            AppshotFeedback.shared.playCompletion(success: false)
             return
         }
 
         phase = .sending
+        AppshotFeedback.shared.playCaptureStart()
         let record = await CapturePipeline.submit(
             imageData: data,
             filename: input.filename.isEmpty ? "shared-screenshot.png" : input.filename,
@@ -145,10 +83,57 @@ struct ShareCaptureView: View {
 
         if record.status == .sent {
             phase = .sent(record.statusMessage)
+            AppshotFeedback.shared.playCompletion(success: true)
             try? await Task.sleep(nanoseconds: 650_000_000)
             finish()
         } else {
             phase = .failed(record.statusMessage)
+            AppshotFeedback.shared.playCompletion(success: false)
+        }
+    }
+}
+
+private struct ShareActionButton: View {
+    enum Style {
+        case primary
+        case secondary
+    }
+
+    var title: String
+    var style: Style
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(style == .primary ? .white : .primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background {
+                    Capsule()
+                        .fill(backgroundStyle)
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(.white.opacity(style == .primary ? 0.16 : 0.58), lineWidth: 1)
+                        }
+                }
+        }
+        .buttonStyle(.plain)
+        .shadow(
+            color: style == .primary ? .black.opacity(0.18) : .black.opacity(0.06),
+            radius: style == .primary ? 14 : 8,
+            x: 0,
+            y: style == .primary ? 8 : 4
+        )
+    }
+
+    private var backgroundStyle: AnyShapeStyle {
+        switch style {
+        case .primary:
+            AnyShapeStyle(Color.black)
+        case .secondary:
+            AnyShapeStyle(.regularMaterial)
         }
     }
 }
@@ -159,26 +144,24 @@ private enum ShareSendPhase: Equatable {
     case sent(String)
     case failed(String)
 
-    var title: String {
+    var feedbackPhase: AppshotSendFeedbackPhase {
         switch self {
         case .loading:
-            "Reading screenshot"
+            .preparing
         case .sending:
-            "Sending to Codex"
+            .sending
         case .sent:
-            "Sent"
+            .sent
         case .failed:
-            "Could not send"
+            .failed
         }
     }
 
-    var message: String? {
+    var feedbackMessage: String? {
         switch self {
-        case .loading:
-            "Preparing the shared image."
-        case .sending:
-            "Waiting for the relay."
-        case .sent(let message), .failed(let message):
+        case .loading, .sending, .sent:
+            nil
+        case .failed(let message):
             message
         }
     }
