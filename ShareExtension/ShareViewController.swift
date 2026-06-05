@@ -12,9 +12,6 @@ final class ShareViewController: UIViewController {
             },
             finish: { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: nil)
-            },
-            cancel: { [weak self] in
-                self?.extensionContext?.cancelRequest(withError: CancellationError())
             }
         )
 

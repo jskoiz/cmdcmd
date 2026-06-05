@@ -14,13 +14,20 @@ struct CaptureView: View {
     @State private var imageData: Data?
     @State private var isSending = false
     @State private var statusText = ""
+    @State private var feedbackPhase: AppshotSendFeedbackPhase?
+    @State private var feedbackMessage: String?
+    @State private var feedbackToken = UUID()
 
     var body: some View {
-        GeometryReader { proxy in
-            glassStack(height: max(proxy.size.height - 32, 0))
-                .padding(.horizontal, 22)
-                .padding(.top, 18)
-                .padding(.bottom, 14)
+        ZStack {
+            GeometryReader { proxy in
+                glassStack(height: max(proxy.size.height - 32, 0))
+                    .padding(.horizontal, 22)
+                    .padding(.top, 18)
+                    .padding(.bottom, 14)
+            }
+
+            feedbackOverlay
         }
         .background {
             AppBackground()
@@ -58,7 +65,7 @@ struct CaptureView: View {
             header
             screenshotPanel(height: panelHeight)
 
-            if !statusText.isEmpty {
+            if feedbackPhase == nil, !statusText.isEmpty {
                 Label(statusText, systemImage: "sparkle")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -141,15 +148,17 @@ struct CaptureView: View {
     }
 
     private var sendButton: some View {
-        HeroSendButton(isBusy: isSending) {
+        let showsInlineProgress = isSending && feedbackPhase == nil
+
+        return HeroSendButton(isBusy: isSending) {
             Task { await sendSelectedImage() }
         } label: {
             HStack(spacing: 10) {
-                if isSending {
+                if showsInlineProgress {
                     ProgressView()
                         .tint(.white)
                         .controlSize(.small)
-                } else {
+                } else if !isSending {
                     Image(systemName: "paperplane.fill")
                         .font(.system(size: 18, weight: .semibold))
                 }
@@ -160,17 +169,42 @@ struct CaptureView: View {
         .disabled(isSending)
     }
 
+    @ViewBuilder
+    private var feedbackOverlay: some View {
+        if let feedbackPhase {
+            Color.black.opacity(0.08)
+                .ignoresSafeArea()
+                .transition(.opacity)
+
+            AppshotCaptureFeedbackView(
+                phase: feedbackPhase,
+                imageData: imageData,
+                message: feedbackMessage
+            )
+            .id(feedbackToken)
+            .transition(.opacity)
+            .padding(.horizontal, 22)
+        }
+    }
+
+    @MainActor
     private func sendSelectedImage() async {
         guard let imageData else {
             statusText = "Choose a screenshot first"
+            AppshotFeedback.shared.playCompletion(success: false)
             captureViewLogger.info("send requested without selected image")
             return
         }
         captureViewLogger.info(
             "send requested imageBytes=\(imageData.count, privacy: .public)"
         )
+        let token = UUID()
+        feedbackToken = token
         isSending = true
-        statusText = "Preparing capture…"
+        statusText = ""
+        feedbackMessage = nil
+        feedbackPhase = .sending
+        AppshotFeedback.shared.playCaptureStart()
         captureViewLogger.info("ui status set preparing capture")
         let record = await store.submit(
             imageData: imageData,
@@ -178,11 +212,29 @@ struct CaptureView: View {
             note: "",
             source: .mainApp
         )
+        let didSend = record.status == .sent
         statusText = record.statusMessage
+        feedbackMessage = didSend ? nil : record.statusMessage
+        feedbackPhase = didSend ? .sent : .failed
+        AppshotFeedback.shared.playCompletion(success: didSend)
         isSending = false
         captureViewLogger.info(
             "send completed status=\(record.status.rawValue, privacy: .public) message=\(record.statusMessage, privacy: .public)"
         )
+        await hideFeedback(after: didSend ? 850_000_000 : 1_800_000_000, token: token)
+    }
+
+    @MainActor
+    private func hideFeedback(after nanoseconds: UInt64, token: UUID) async {
+        try? await Task.sleep(nanoseconds: nanoseconds)
+        guard feedbackToken == token else {
+            return
+        }
+
+        withAnimation(.easeOut(duration: 0.18)) {
+            feedbackPhase = nil
+            feedbackMessage = nil
+        }
     }
 }
 
