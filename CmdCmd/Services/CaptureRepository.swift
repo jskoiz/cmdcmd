@@ -11,6 +11,7 @@ enum CaptureRepository {
     }
 
     static func loadSettings() -> RelaySettings {
+        defaults.synchronize()
         guard let data = defaults.data(forKey: settingsKey) else {
             #if DEBUG
             if let bootstrapSettings = debugBootstrapSettingsFromEnvironment() {
@@ -47,9 +48,11 @@ enum CaptureRepository {
             return
         }
         defaults.set(data, forKey: settingsKey)
+        defaults.synchronize()
     }
 
     static func loadRecords() -> [CaptureRecord] {
+        defaults.synchronize()
         guard let data = defaults.data(forKey: recordsKey) else {
             return []
         }
@@ -67,6 +70,7 @@ enum CaptureRepository {
             return
         }
         defaults.set(data, forKey: recordsKey)
+        defaults.synchronize()
     }
 
     static func upsert(_ record: CaptureRecord) {

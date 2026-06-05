@@ -7,8 +7,8 @@ import { loadConfig } from "../src/config.js";
 import {
   buildDesktopAttachmentText,
   buildDesktopHelperArgs,
-  DesktopAppshotClient
-} from "../src/desktop-appshot-client.js";
+  DesktopAttachmentClient
+} from "../src/desktop-attachment-client.js";
 import { createDeliveryStatusStore } from "../src/delivery-status.js";
 import { deliverPayload } from "../src/relay.js";
 import { createServer } from "../src/server.js";
@@ -67,8 +67,8 @@ test("deliverPayload validates, stores, and queues Codex Desktop delivery", asyn
         resolveDelivery();
         return {
           status: "delivered",
-          deliveryLane: "desktop-appshot",
-          message: "AppShot sent to Codex"
+          deliveryLane: "desktop-attachment",
+          message: "Screenshot sent to Codex"
         };
       }
     }
@@ -92,7 +92,7 @@ test("deliverPayload validates, stores, and queues Codex Desktop delivery", asyn
   assert.equal(metadata.imagePath, result.imagePath);
 });
 
-test("loadConfig includes Codex Desktop paste defaults", () => {
+test("loadConfig includes Codex Desktop attachment defaults", () => {
   const config = loadConfig(
     {
       CMDCMD_RELAY_TOKEN: "secret"
@@ -100,11 +100,8 @@ test("loadConfig includes Codex Desktop paste defaults", () => {
     { cwd: process.cwd() }
   );
 
-  assert.equal(config.appshot.openImageInViewer, false);
-  assert.equal(config.appshot.viewerBundle, "com.apple.Preview");
-  assert.equal(config.appshot.closeViewerWindow, true);
-  assert.equal(config.appshot.codexBundle, "com.openai.codex");
-  assert.equal(config.appshot.pasteDelayMs, 400);
+  assert.equal(config.desktopAttachment.codexBundle, "com.openai.codex");
+  assert.equal(config.desktopAttachment.pasteDelayMs, 400);
 });
 
 test("loadConfig rejects obsolete relay delivery settings", () => {
@@ -135,8 +132,22 @@ test("loadConfig rejects obsolete Appshot helper settings", () => {
   );
 });
 
-test("DesktopAppshotClient opens the screenshot hidden when viewer is enabled", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmdcmd-appshot-"));
+test("loadConfig rejects obsolete Appshot attachment settings", () => {
+  assert.throws(
+    () =>
+      loadConfig(
+        {
+          CMDCMD_RELAY_TOKEN: "secret",
+          CMDCMD_APPSHOT_CODEX_BUNDLE: "com.openai.codex"
+        },
+        { cwd: process.cwd() }
+      ),
+    /CMDCMD_APPSHOT_CODEX_BUNDLE is no longer supported/
+  );
+});
+
+test("DesktopAttachmentClient sends screenshot context as a text attachment", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmdcmd-attachment-"));
   const imagePath = path.join(tempDir, "image.png");
   await fs.writeFile(imagePath, Buffer.from(samplePayload.imageBase64, "base64"));
   const commands = [];
@@ -145,16 +156,12 @@ test("DesktopAppshotClient opens the screenshot hidden when viewer is enabled", 
     {
       CMDCMD_RELAY_TOKEN: "secret",
       CMDCMD_INBOX_DIR: tempDir,
-      CMDCMD_APPSHOT_OPEN_VIEWER: "true",
-      CMDCMD_APPSHOT_VIEWER_BUNDLE: "com.apple.Preview",
-      CMDCMD_APPSHOT_CODEX_BUNDLE: "com.openai.codex",
-      CMDCMD_APPSHOT_OPEN_DELAY_MS: "1",
-      CMDCMD_APPSHOT_PASTE_DELAY_MS: "1",
-      CMDCMD_APPSHOT_CLOSE_VIEWER: "true"
+      CMDCMD_DESKTOP_CODEX_BUNDLE: "com.openai.codex",
+      CMDCMD_DESKTOP_PASTE_DELAY_MS: "1"
     },
     { cwd: tempDir }
   );
-  const client = new DesktopAppshotClient(config, {
+  const client = new DesktopAttachmentClient(config, {
     logger: { info() {}, error() {} },
     desktopHelperCommand: "/tmp/cmdcmd-desktop-helper",
     runCommand: async (command, args) => {
@@ -169,15 +176,15 @@ test("DesktopAppshotClient opens the screenshot hidden when viewer is enabled", 
   });
 
   assert.equal(result.status, "delivered");
-  assert.equal(result.deliveryLane, "desktop-appshot");
+  assert.equal(result.deliveryLane, "desktop-attachment");
   assert.equal(
     result.message,
-    "AppShot sent to Codex"
+    "Screenshot sent to Codex"
   );
   assert.equal(result.targetBundle, "com.openai.codex");
-  const textPath = path.join(tempDir, "metadata.txt");
+  const contextPath = path.join(tempDir, "metadata.txt");
   assert.equal(
-    await fs.readFile(textPath, "utf8"),
+    await fs.readFile(contextPath, "utf8"),
     [
       "Screenshot context:",
       "Source: Shortcut - Unit test",
@@ -196,17 +203,9 @@ test("DesktopAppshotClient opens the screenshot hidden when viewer is enabled", 
     ].join("\n")
   );
   assert.deepEqual(commands.map(({ command, args }) => [command, args[0]]), [
-    ["/usr/bin/open", "-g"],
     ["/tmp/cmdcmd-desktop-helper", "--image-path"]
   ]);
   assert.deepEqual(commands[0].args, [
-    "-g",
-    "-j",
-    "-b",
-    "com.apple.Preview",
-    imagePath
-  ]);
-  assert.deepEqual(commands[1].args, [
     "--image-path",
     imagePath,
     "--codex-bundle",
@@ -215,16 +214,13 @@ test("DesktopAppshotClient opens the screenshot hidden when viewer is enabled", 
     "1",
     "--composer-bottom-offset",
     "70",
-    "--text-path",
-    textPath,
-    "--viewer-bundle",
-    "com.apple.Preview",
-    "--close-viewer"
+    "--context-path",
+    contextPath
   ]);
 });
 
-test("DesktopAppshotClient pastes without opening Preview by default", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmdcmd-appshot-"));
+test("DesktopAttachmentClient triggers without Preview by default", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmdcmd-attachment-"));
   const imagePath = path.join(tempDir, "image.png");
   await fs.writeFile(imagePath, Buffer.from(samplePayload.imageBase64, "base64"));
   const commands = [];
@@ -233,12 +229,12 @@ test("DesktopAppshotClient pastes without opening Preview by default", async () 
     {
       CMDCMD_RELAY_TOKEN: "secret",
       CMDCMD_INBOX_DIR: tempDir,
-      CMDCMD_APPSHOT_CODEX_BUNDLE: "com.openai.codex",
-      CMDCMD_APPSHOT_PASTE_DELAY_MS: "1"
+      CMDCMD_DESKTOP_CODEX_BUNDLE: "com.openai.codex",
+      CMDCMD_DESKTOP_PASTE_DELAY_MS: "1"
     },
     { cwd: tempDir }
   );
-  const client = new DesktopAppshotClient(config, {
+  const client = new DesktopAttachmentClient(config, {
     logger: { info() {}, error() {} },
     desktopHelperCommand: "/tmp/cmdcmd-desktop-helper",
     runCommand: async (command, args) => {
@@ -257,20 +253,21 @@ test("DesktopAppshotClient pastes without opening Preview by default", async () 
   ]);
   assert.equal(commands[0].args.includes("--viewer-bundle"), false);
   assert.equal(commands[0].args.includes("--close-viewer"), false);
+  assert.equal(commands[0].args.includes("--text-path"), false);
+  assert.equal(commands[0].args.includes("--window-title"), false);
 });
 
-test("buildDesktopHelperArgs configures frontmost composer paste", () => {
+test("buildDesktopHelperArgs configures screenshot and text attachment paste", () => {
   assert.deepEqual(
     buildDesktopHelperArgs(
       "/tmp/screenshot.png",
       {
         codexBundle: "com.openai.codex",
-        pasteDelayMs: 250,
-        openImageInViewer: true,
-        closeViewerWindow: true,
-        viewerBundle: "com.apple.Preview"
+        pasteDelayMs: 250
       },
-      { textPath: "/tmp/screenshot.txt" }
+      {
+        contextPath: "/tmp/screenshot.txt"
+      }
     ),
     [
       "--image-path",
@@ -281,16 +278,13 @@ test("buildDesktopHelperArgs configures frontmost composer paste", () => {
       "250",
       "--composer-bottom-offset",
       "70",
-      "--text-path",
+      "--context-path",
       "/tmp/screenshot.txt",
-      "--viewer-bundle",
-      "com.apple.Preview",
-      "--close-viewer"
     ]
   );
 });
 
-test("buildDesktopAttachmentText includes context and OCR", () => {
+test("buildDesktopAttachmentText builds plain Accessibility context", () => {
   assert.equal(
     buildDesktopAttachmentText(samplePayload),
     [
@@ -314,7 +308,35 @@ test("buildDesktopAttachmentText includes context and OCR", () => {
       context: "",
       recognizedText: "  Visible text  "
     }),
-    "OCR text:\nVisible text"
+    [
+      "OCR text:",
+      "Visible text"
+    ].join("\n")
+  );
+});
+
+test("buildDesktopAttachmentText leaves context as plain text", () => {
+  assert.equal(
+    buildDesktopAttachmentText({
+      imageFilename: "unsafe \"<name>&.png",
+      screenshotContext: {
+        visibleApp: {
+          name: "App \"<One>&",
+          confidence: "high",
+          evidence: ["A&B"]
+        }
+      },
+      context: "Compare A < B & C > D",
+      recognizedText: ""
+    }),
+    [
+      "Screenshot context:",
+      "Visible app: App \"<One>& (high inference from A&B)",
+      "OCR: no useful text",
+      "",
+      "Context:",
+      "Compare A < B & C > D"
+    ].join("\n")
   );
 });
 
@@ -346,7 +368,7 @@ test("buildDesktopAttachmentText filters noisy OCR lines", () => {
       "• | 5 5",
       "26 + H",
       "•••",
-      "CodexShot",
+      "cmd+cmd",
       "& OCR ready",
       "U Thread hint",
       ") Sending to Codex",
@@ -365,10 +387,10 @@ test("buildDesktopAttachmentText filters noisy OCR lines", () => {
       "Prepared: Jun 04, 2026, 12:00:01 PM UTC",
       "Visible app: cmd+cmd (medium inference from OCR ready, Thread hint)",
       "Image: ../unsafe name.png; image/png; 8x8; 176 B",
-      "OCR: 5 useful lines, 59 characters, 412 ms, avg confidence 89%",
+      "OCR: 5 useful lines, 57 characters, 412 ms, avg confidence 89%",
       "",
       "OCR text:",
-      "CodexShot",
+      "cmd+cmd",
       "OCR ready",
       "Thread hint",
       "Sending to Codex",
@@ -414,17 +436,17 @@ test("delivery status reports Codex Desktop progress honestly", () => {
   };
 
   const accepted = store.accept(capture, stored, "req_test");
-  assert.equal(accepted.message, "AppShot queued for Codex");
+  assert.equal(accepted.message, "Screenshot queued for Codex");
 
   const delivering = store.deliver(capture.captureId);
-  assert.equal(delivering.message, "Sending AppShot to Codex");
+  assert.equal(delivering.message, "Sending screenshot to Codex");
 
   const delivered = store.complete(capture.captureId, {
-    deliveryLane: "desktop-appshot"
+    deliveryLane: "desktop-attachment"
   });
   assert.equal(
     delivered.message,
-    "AppShot sent to Codex"
+    "Screenshot sent to Codex"
   );
 });
 
@@ -443,8 +465,8 @@ test("createServer requires bearer auth for capture posts", async (t) => {
       async deliver() {
         return {
           status: "delivered",
-          deliveryLane: "desktop-appshot",
-          message: "AppShot sent to Codex"
+          deliveryLane: "desktop-attachment",
+          message: "Screenshot sent to Codex"
         };
       }
     },
@@ -531,8 +553,8 @@ test("createServer exposes authenticated delivery status until completion", asyn
         await deliveryCanFinish;
         return {
           status: "delivered",
-          deliveryLane: "desktop-appshot",
-          message: "AppShot sent to Codex"
+          deliveryLane: "desktop-attachment",
+          message: "Screenshot sent to Codex"
         };
       }
     },
@@ -573,9 +595,9 @@ test("createServer exposes authenticated delivery status until completion", asyn
   );
   assert.equal(
     deliveredBody.message,
-    "AppShot sent to Codex"
+    "Screenshot sent to Codex"
   );
-  assert.equal(deliveredBody.deliveryLane, "desktop-appshot");
+  assert.equal(deliveredBody.deliveryLane, "desktop-attachment");
 });
 
 test("invalid payloads are rejected before storage", async () => {

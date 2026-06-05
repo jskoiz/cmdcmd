@@ -7,26 +7,14 @@ enum DesktopDelivery {
     static func deliver(capture: CapturePayload, stored: StoredCapture, settings: RelaySettings) throws {
         try requireAccessibilityTrust()
 
-        if settings.openImageInViewer {
-            openImage(path: stored.imagePath, bundleIdentifier: settings.viewerBundleIdentifier)
-            Thread.sleep(forTimeInterval: 0.75)
-        }
+        let contextPath = try writeContextAttachment(capture: capture, stored: stored)
 
-        try copyImageToPasteboard(stored.imagePath)
         guard let codex = launchOrActivate(bundleIdentifier: settings.codexBundleIdentifier) else {
             throw RelayHTTPError.server("Could not activate Codex app bundle \(settings.codexBundleIdentifier).")
         }
 
         Thread.sleep(forTimeInterval: Double(settings.pasteDelayMilliseconds) / 1000.0)
-        try pasteIntoCodex(app: codex, text: attachmentText(capture: capture), composerBottomOffset: 70)
-
-        if settings.openImageInViewer, settings.closeViewerWindow {
-            closeViewerWindow(
-                imagePath: stored.imagePath,
-                viewerBundleIdentifier: settings.viewerBundleIdentifier,
-                codex: codex
-            )
-        }
+        try pasteAttachmentsIntoCodex(app: codex, imagePath: stored.imagePath, contextPath: contextPath)
     }
 
     static func accessibilityTrusted(prompt: Bool) -> Bool {
@@ -35,46 +23,11 @@ enum DesktopDelivery {
     }
 
     private static func requireAccessibilityTrust() throws {
-        guard accessibilityTrusted(prompt: true) else {
+        guard accessibilityTrusted(prompt: false) else {
             throw RelayHTTPError.server(
-                "Accessibility permission is required on your Mac. Grant it to cmd+cmd Relay, then try again."
+                "Accessibility is still not available to the background relay. In System Settings, turn cmd+cmd Relay off and back on, then rerun the Mac installer."
             )
         }
-    }
-
-    private static func openImage(path: String, bundleIdentifier: String) {
-        let imageURL = URL(fileURLWithPath: path)
-        guard let viewerURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
-            NSWorkspace.shared.open(imageURL)
-            return
-        }
-
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        NSWorkspace.shared.open([imageURL], withApplicationAt: viewerURL, configuration: configuration)
-    }
-
-    private static func copyImageToPasteboard(_ imagePath: String) throws {
-        guard let image = NSImage(contentsOfFile: imagePath) else {
-            throw RelayHTTPError.server("Could not load image: \(imagePath).")
-        }
-
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        if pasteboard.writeObjects([image]) {
-            return
-        }
-
-        guard let tiff = image.tiffRepresentation else {
-            throw RelayHTTPError.server("Could not encode image for pasteboard.")
-        }
-        pasteboard.setData(tiff, forType: .tiff)
-    }
-
-    private static func copyTextToPasteboard(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
     }
 
     private static func runningApplication(bundleIdentifier: String) -> NSRunningApplication? {
@@ -106,16 +59,60 @@ enum DesktopDelivery {
         return box.app ?? runningApplication(bundleIdentifier: bundleIdentifier)
     }
 
-    private static func pasteIntoCodex(
+    private static func writeContextAttachment(capture: CapturePayload, stored: StoredCapture) throws -> String? {
+        guard let text = attachmentText(capture: capture) else {
+            return nil
+        }
+
+        let metadataURL = URL(fileURLWithPath: stored.metadataPath)
+        let textURL = metadataURL.deletingPathExtension().appendingPathExtension("txt")
+        try "\(text)\n".write(to: textURL, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: textURL.path)
+        return textURL.path
+    }
+
+    private static func copyImageToPasteboard(_ imagePath: String) throws {
+        guard let image = NSImage(contentsOfFile: imagePath) else {
+            throw RelayHTTPError.server("Could not load image: \(imagePath).")
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if pasteboard.writeObjects([image]) {
+            return
+        }
+
+        guard let tiff = image.tiffRepresentation else {
+            throw RelayHTTPError.server("Could not encode image for pasteboard.")
+        }
+        pasteboard.setData(tiff, forType: .tiff)
+    }
+
+    private static func copyFileToPasteboard(_ path: String) throws {
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw RelayHTTPError.server("Could not find context attachment: \(path).")
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if pasteboard.writeObjects([url as NSURL]) {
+            return
+        }
+
+        pasteboard.setString(url.absoluteString, forType: .fileURL)
+    }
+
+    private static func pasteAttachmentsIntoCodex(
         app: NSRunningApplication,
-        text: String?,
-        composerBottomOffset: Int
+        imagePath: String,
+        contextPath: String?
     ) throws {
         let source = try eventSource()
         let frame = try focusedWindowFrame(for: app)
         let clickPoint = CGPoint(
             x: frame.origin.x + frame.width / 2,
-            y: frame.origin.y + frame.height - CGFloat(composerBottomOffset)
+            y: frame.origin.y + frame.height - 70
         )
 
         postKey(source, key: 53, down: true)
@@ -123,11 +120,13 @@ enum DesktopDelivery {
         usleep(100_000)
         try postClick(source, point: clickPoint)
         usleep(150_000)
+
+        try copyImageToPasteboard(imagePath)
         try postPaste(source)
 
-        if let text, !text.isEmpty {
+        if let contextPath {
             usleep(300_000)
-            copyTextToPasteboard(text)
+            try copyFileToPasteboard(contextPath)
             try postPaste(source)
         }
     }
@@ -239,7 +238,17 @@ enum DesktopDelivery {
             recognizedText.isEmpty ? nil : "OCR text:\n\(recognizedText)"
         ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-        return sections.isEmpty ? nil : sections.joined(separator: "\n\n")
+        let body = sections.joined(separator: "\n\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return body.isEmpty ? nil : body
+    }
+
+    private static func cleanInline(_ value: String?) -> String? {
+        value?
+            .replacingOccurrences(of: "\r\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .split(separator: " ", omittingEmptySubsequences: true)
+            .joined(separator: " ")
     }
 
     private static func screenshotContextText(
@@ -313,71 +322,6 @@ enum DesktopDelivery {
         default:
             return value
         }
-    }
-
-    private static func closeViewerWindow(
-        imagePath: String,
-        viewerBundleIdentifier: String,
-        codex: NSRunningApplication
-    ) {
-        guard let viewer = runningApplication(bundleIdentifier: viewerBundleIdentifier) else {
-            return
-        }
-        let viewerElement = AXUIElementCreateApplication(viewer.processIdentifier)
-        var windowsRef: CFTypeRef?
-        let windowsResult = AXUIElementCopyAttributeValue(
-            viewerElement,
-            kAXWindowsAttribute as CFString,
-            &windowsRef
-        )
-        guard windowsResult == .success,
-              let windows = windowsRef as? [AXUIElement],
-              !windows.isEmpty else {
-            return
-        }
-
-        let imageURL = URL(fileURLWithPath: imagePath)
-        let fileName = imageURL.lastPathComponent
-        let fileStem = imageURL.deletingPathExtension().lastPathComponent
-        let targetWindow = windows.first { window in
-            let windowTitle = title(for: window)
-            return windowTitle.contains(fileName) || windowTitle.contains(fileStem)
-        } ?? windows[0]
-
-        focusViewerWindow(appElement: viewerElement, window: targetWindow)
-        activate(viewer)
-        usleep(100_000)
-
-        if let closeButton = closeButton(for: targetWindow),
-           AXUIElementPerformAction(closeButton, kAXPressAction as CFString) == .success {
-            usleep(150_000)
-            activate(codex)
-            return
-        }
-    }
-
-    private static func title(for window: AXUIElement) -> String {
-        var titleRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleRef)
-        guard result == .success, let title = titleRef as? String else {
-            return ""
-        }
-        return title
-    }
-
-    private static func closeButton(for window: AXUIElement) -> AXUIElement? {
-        var closeButtonRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute as CFString, &closeButtonRef)
-        guard result == .success, closeButtonRef != nil else {
-            return nil
-        }
-        return (closeButtonRef as! AXUIElement)
-    }
-
-    private static func focusViewerWindow(appElement: AXUIElement, window: AXUIElement) {
-        AXUIElementSetAttributeValue(appElement, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
-        AXUIElementSetAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, window)
-        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
     }
 
     private static func activate(_ app: NSRunningApplication) {

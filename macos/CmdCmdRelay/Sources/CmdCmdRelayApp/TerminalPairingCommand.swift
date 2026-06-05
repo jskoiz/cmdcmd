@@ -13,8 +13,14 @@ enum TerminalRelayCommand {
         }
 
         if options.contains("--prepare-pairing") {
-            let settings = preparePhonePairingSettings()
+            let settings = preparePhonePairingSettings(deliveryMode: .codex)
             print("Prepared pairing for \(settings.phoneEndpoint.absoluteString)")
+            return true
+        }
+
+        if options.contains("--prepare-review-pairing") {
+            let settings = preparePhonePairingSettings(deliveryMode: .reviewInbox)
+            print("Prepared review pairing for \(settings.phoneEndpoint.absoluteString)")
             return true
         }
 
@@ -51,8 +57,10 @@ enum TerminalRelayCommand {
         Usage:
           CmdCmdRelayApp --serve
           CmdCmdRelayApp --prepare-pairing
+          CmdCmdRelayApp --prepare-review-pairing
           CmdCmdRelayApp --print-pairing-qr
           CmdCmdRelayApp --print-health-url
+          CmdCmdRelayApp --accessibility-status
           CmdCmdRelayApp --request-accessibility
 
         The installer starts the relay in the background and prints the iPhone
@@ -62,10 +70,13 @@ enum TerminalRelayCommand {
 
     private static func printPairingQRCode() {
         let settings = preparePhonePairingSettings()
-        let pairingURL = settings.pairingURL.absoluteString
+        let pairingURL = settings.compactPairingURL.absoluteString
 
         print("")
         print("cmd+cmd Relay is ready")
+        if settings.deliveryMode == .reviewInbox {
+            print("Review inbox mode is enabled. Codex Desktop is not required.")
+        }
         print("1. Open cmd+cmd on iPhone.")
         print("2. Go to Settings, then tap Scan Desktop QR.")
         print("3. Scan this code to link the phone to this Mac.")
@@ -100,7 +111,7 @@ enum TerminalRelayCommand {
         do {
             try server.start()
             let settings = RelaySettingsStore.load()
-            log("ready on \(settings.phoneEndpoint.absoluteString)")
+            log("ready on \(settings.phoneEndpoint.absoluteString) (\(settings.deliveryMode.logLabel))")
         } catch {
             fputs("cmd+cmd relay failed: \(error.localizedDescription)\n", stderr)
             Foundation.exit(1)
@@ -139,11 +150,15 @@ enum TerminalRelayCommand {
         Foundation.exit(2)
     }
 
-    private static func preparePhonePairingSettings() -> RelaySettings {
+    private static func preparePhonePairingSettings(deliveryMode: RelayDeliveryMode? = nil) -> RelaySettings {
         var settings = RelaySettingsStore.load()
 
         if settings.host != "0.0.0.0" {
             settings.host = "0.0.0.0"
+        }
+
+        if let deliveryMode {
+            settings.deliveryMode = deliveryMode
         }
 
         do {
@@ -182,7 +197,7 @@ enum TerminalRelayCommand {
     private static func terminalQRCode(for value: String) -> String? {
         let filter = CIFilter.qrCodeGenerator()
         filter.message = Data(value.utf8)
-        filter.correctionLevel = "M"
+        filter.correctionLevel = "L"
 
         guard let output = filter.outputImage else {
             return nil
@@ -202,35 +217,52 @@ enum TerminalRelayCommand {
         }
 
         let bitmap = NSBitmapImageRep(cgImage: image)
-        let quietZone = 4
+        let quietZone = 2
         let width = bitmap.pixelsWide
         let height = bitmap.pixelsHigh
-        let blackCell = "\u{001B}[40m  "
-        let whiteCell = "\u{001B}[47m  "
         let reset = "\u{001B}[0m"
         var lines: [String] = []
+        let totalWidth = width + (quietZone * 2)
+        let totalHeight = height + (quietZone * 2)
 
-        let blankLine = String(repeating: whiteCell, count: width + (quietZone * 2)) + reset
-        for _ in 0..<quietZone {
-            lines.append(blankLine)
-        }
-
-        for y in 0..<height {
-            var line = String(repeating: whiteCell, count: quietZone)
-            for x in 0..<width {
-                let color = bitmap.colorAt(x: x, y: y)
-                let white = color?.usingColorSpace(.deviceGray)?.whiteComponent ?? 1
-                line += white < 0.5 ? blackCell : whiteCell
+        for y in stride(from: 0, to: totalHeight, by: 2) {
+            var line = ""
+            for x in 0..<totalWidth {
+                let topIsDark = qrPixelIsDark(bitmap: bitmap, x: x - quietZone, y: y - quietZone)
+                let bottomIsDark = qrPixelIsDark(bitmap: bitmap, x: x - quietZone, y: y + 1 - quietZone)
+                line += terminalHalfBlock(topIsDark: topIsDark, bottomIsDark: bottomIsDark)
             }
-            line += String(repeating: whiteCell, count: quietZone)
             line += reset
             lines.append(line)
         }
 
-        for _ in 0..<quietZone {
-            lines.append(blankLine)
+        return lines.joined(separator: "\n")
+    }
+
+    private static func qrPixelIsDark(bitmap: NSBitmapImageRep, x: Int, y: Int) -> Bool {
+        guard x >= 0, x < bitmap.pixelsWide, y >= 0, y < bitmap.pixelsHigh else {
+            return false
         }
 
-        return lines.joined(separator: "\n")
+        let color = bitmap.colorAt(x: x, y: y)
+        let white = color?.usingColorSpace(.deviceGray)?.whiteComponent ?? 1
+        return white < 0.5
+    }
+
+    private static func terminalHalfBlock(topIsDark: Bool, bottomIsDark: Bool) -> String {
+        let foreground = topIsDark ? "\u{001B}[30m" : "\u{001B}[97m"
+        let background = bottomIsDark ? "\u{001B}[40m" : "\u{001B}[107m"
+        return foreground + background + "▀"
+    }
+}
+
+private extension RelayDeliveryMode {
+    var logLabel: String {
+        switch self {
+        case .codex:
+            return "Codex Desktop mode"
+        case .reviewInbox:
+            return "review inbox mode"
+        }
     }
 }

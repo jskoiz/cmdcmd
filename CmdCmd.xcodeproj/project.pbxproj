@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		110000000000000000000112 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000016 /* Assets.xcassets */; };
+		110000000000000000000119 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001A /* PrivacyInfo.xcprivacy */; };
 		110000000000000000000101 /* CmdCmdApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000001 /* CmdCmdApp.swift */; };
 		110000000000000000000102 /* CaptureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000002 /* CaptureModels.swift */; };
 		110000000000000000000103 /* CaptureRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000003 /* CaptureRepository.swift */; };
@@ -26,6 +27,7 @@
 		11000000000000000000020A /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* Theme.swift */; };
 		11000000000000000000020B /* AppshotFeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* AppshotFeedbackView.swift */; };
 		11000000000000000000020C /* CommandSymbolSpinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000019 /* CommandSymbolSpinner.swift */; };
+		11000000000000000000020D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000024 /* PrivacyInfo.xcprivacy */; };
 		11000000000000000000010B /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000B /* GlassPanel.swift */; };
 		11000000000000000000010C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000C /* ContentView.swift */; };
 		11000000000000000000010D /* CaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000D /* CaptureView.swift */; };
@@ -42,7 +44,7 @@
 		110000000000000000000207 /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000B /* GlassPanel.swift */; };
 		110000000000000000000208 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000020 /* ShareViewController.swift */; };
 		110000000000000000000209 /* ShareCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000021 /* ShareCaptureView.swift */; };
-		110000000000000000000301 /* cmd+cmd Share.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 110000000000000000000031 /* cmd+cmd Share.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		110000000000000000000301 /* CmdCmdShare.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 110000000000000000000031 /* CmdCmdShare.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,7 +64,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				110000000000000000000301 /* cmd+cmd Share.appex in Embed App Extensions */,
+				110000000000000000000301 /* CmdCmdShare.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -85,6 +87,7 @@
 		110000000000000000000014 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/Theme.swift; sourceTree = "<group>"; };
 		110000000000000000000015 /* ImagePlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/ImagePlaceholder.swift; sourceTree = "<group>"; };
 		110000000000000000000016 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		11000000000000000000001A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Resources/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		110000000000000000000019 /* CommandSymbolSpinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/CommandSymbolSpinner.swift; sourceTree = "<group>"; };
 		11000000000000000000000B /* GlassPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/GlassPanel.swift; sourceTree = "<group>"; };
 		11000000000000000000000C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ContentView.swift; sourceTree = "<group>"; };
@@ -99,8 +102,9 @@
 		110000000000000000000021 /* ShareCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCaptureView.swift; sourceTree = "<group>"; };
 		110000000000000000000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		110000000000000000000023 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
-		110000000000000000000030 /* cmd+cmd.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "cmd+cmd.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		110000000000000000000031 /* cmd+cmd Share.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "cmd+cmd Share.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		110000000000000000000024 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		110000000000000000000030 /* CmdCmd.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CmdCmd.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		110000000000000000000031 /* CmdCmdShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CmdCmdShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -156,6 +160,7 @@
 				110000000000000000000018 /* AppshotFeedbackView.swift */,
 				110000000000000000000019 /* CommandSymbolSpinner.swift */,
 				110000000000000000000016 /* Assets.xcassets */,
+				11000000000000000000001A /* PrivacyInfo.xcprivacy */,
 				110000000000000000000011 /* Info.plist */,
 				110000000000000000000012 /* CmdCmd.entitlements */,
 			);
@@ -168,6 +173,7 @@
 				110000000000000000000020 /* ShareViewController.swift */,
 				110000000000000000000021 /* ShareCaptureView.swift */,
 				110000000000000000000022 /* Info.plist */,
+				110000000000000000000024 /* PrivacyInfo.xcprivacy */,
 				110000000000000000000023 /* ShareExtension.entitlements */,
 			);
 			path = ShareExtension;
@@ -176,8 +182,8 @@
 		110000000000000000000703 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				110000000000000000000030 /* cmd+cmd.app */,
-				110000000000000000000031 /* cmd+cmd Share.appex */,
+				110000000000000000000030 /* CmdCmd.app */,
+				110000000000000000000031 /* CmdCmdShare.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -201,7 +207,7 @@
 			);
 			name = CmdCmd;
 			productName = CmdCmd;
-			productReference = 110000000000000000000030 /* cmd+cmd.app */;
+			productReference = 110000000000000000000030 /* CmdCmd.app */;
 			productType = "com.apple.product-type.application";
 		};
 		110000000000000000000502 /* CmdCmdShareExtension */ = {
@@ -218,7 +224,7 @@
 			);
 			name = CmdCmdShareExtension;
 			productName = CmdCmdShareExtension;
-			productReference = 110000000000000000000031 /* cmd+cmd Share.appex */;
+			productReference = 110000000000000000000031 /* CmdCmdShare.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -265,6 +271,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				110000000000000000000112 /* Assets.xcassets in Resources */,
+				110000000000000000000119 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -272,6 +279,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				11000000000000000000020D /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -463,7 +471,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = CmdCmd/Resources/CmdCmd.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = H8PYU9TN9X;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -477,7 +485,8 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jskoiz.cmdcmd;
 				PRODUCT_MODULE_NAME = CmdCmd;
-				PRODUCT_NAME = "cmd+cmd";
+				EXECUTABLE_NAME = CmdCmd;
+				PRODUCT_NAME = CmdCmd;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -493,7 +502,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = CmdCmd/Resources/CmdCmd.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = H8PYU9TN9X;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -507,7 +516,8 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jskoiz.cmdcmd;
 				PRODUCT_MODULE_NAME = CmdCmd;
-				PRODUCT_NAME = "cmd+cmd";
+				EXECUTABLE_NAME = CmdCmd;
+				PRODUCT_NAME = CmdCmd;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -522,7 +532,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = H8PYU9TN9X;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
@@ -535,7 +545,8 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jskoiz.cmdcmd.ShareExtension;
 				PRODUCT_MODULE_NAME = CmdCmdShareExtension;
-				PRODUCT_NAME = "cmd+cmd Share";
+				EXECUTABLE_NAME = CmdCmdShare;
+				PRODUCT_NAME = CmdCmdShare;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -551,7 +562,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = H8PYU9TN9X;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
@@ -564,7 +575,8 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jskoiz.cmdcmd.ShareExtension;
 				PRODUCT_MODULE_NAME = CmdCmdShareExtension;
-				PRODUCT_NAME = "cmd+cmd Share";
+				EXECUTABLE_NAME = CmdCmdShare;
+				PRODUCT_NAME = CmdCmdShare;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

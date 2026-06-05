@@ -30,7 +30,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>3</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -39,11 +39,11 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>cmd+cmd uses the camera to scan the Desktop relay pairing QR code.</string>
+	<string>cmd+cmd uses the camera to scan the desktop pairing QR code.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>cmd+cmd uses Photos to choose screenshots and send your latest screenshot to your configured Codex relay.</string>
+	<string>cmd+cmd uses Photos to choose and send screenshots.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>cmd+cmd connects to your private relay on this Mac over your local network.</string>
+	<string>cmd+cmd connects to your paired Mac relay on your local network.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

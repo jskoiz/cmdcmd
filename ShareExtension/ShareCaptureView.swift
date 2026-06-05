@@ -82,8 +82,17 @@ struct ShareCaptureView: View {
             return
         }
 
-        phase = .sending
+        phase = .loading
         AppshotFeedback.shared.playCaptureStart()
+        let settings = CaptureRepository.loadSettings()
+        let readiness = await RelayClient(settings: settings).checkReadiness()
+        if let failureMessage = readiness.failureMessage {
+            phase = .failed(failureMessage)
+            AppshotFeedback.shared.playCompletion(success: false)
+            return
+        }
+
+        phase = .sending
         let record = await CapturePipeline.submit(
             imageData: data,
             filename: input.filename.isEmpty ? "shared-screenshot.png" : input.filename,

@@ -157,15 +157,15 @@ enum CapturePipeline {
     }
 
     static var deliveredStatusMessage: String {
-        "AppShot sent to Codex"
+        "Screenshot sent to Codex"
     }
 
     private static func queuedMessage() -> String {
-        "AppShot queued for Codex"
+        "Screenshot queued for Codex"
     }
 
     private static func unconfirmedDeliveryMessage() -> String {
-        "AppShot reached the relay, but Codex delivery was not confirmed. Check Codex Desktop and the Mac relay, then try again."
+        "Screenshot reached the relay, but Codex delivery was not confirmed. Check Codex Desktop and the Mac relay, then try again."
     }
 
     private static func userFacingFailureMessage(for error: Error, settings: RelaySettings) -> String {

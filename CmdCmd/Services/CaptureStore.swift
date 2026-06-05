@@ -1,5 +1,11 @@
 import Foundation
 import Observation
+import OSLog
+
+private let captureStoreLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CmdCmd",
+    category: "CaptureStore"
+)
 
 @MainActor
 @Observable
@@ -26,6 +32,9 @@ final class CaptureStore {
         updatedSettings.endpoint = endpoint
         updatedSettings.apiToken = apiToken
         saveSettings(updatedSettings)
+        captureStoreLogger.info(
+            "pairing stored endpointHost=\(URL(string: endpoint)?.host() ?? "invalid", privacy: .public) tokenSuffix=\(tokenSuffix(apiToken), privacy: .public)"
+        )
     }
 
     func reload() {
@@ -55,4 +64,12 @@ final class CaptureStore {
         reload()
         return record
     }
+}
+
+private func tokenSuffix(_ token: String) -> String {
+    let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+        return "none"
+    }
+    return String(trimmed.suffix(6))
 }

@@ -32,10 +32,9 @@ if [[ -f "$ICON_SOURCE" ]]; then
     /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile AppIcon" "$APP_DIR/Contents/Info.plist"
 fi
 
-if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
-  codesign --force --deep --options runtime --sign "$DEVELOPER_ID_APPLICATION" "$APP_DIR"
-  codesign --verify --deep --strict "$APP_DIR"
-fi
+SIGN_IDENTITY="${DEVELOPER_ID_APPLICATION:--}"
+codesign --force --deep --options runtime --sign "$SIGN_IDENTITY" "$APP_DIR"
+codesign --verify --deep --strict "$APP_DIR"
 
 ditto -c -k --keepParent "$APP_DIR" "$ZIP_PATH"
 (

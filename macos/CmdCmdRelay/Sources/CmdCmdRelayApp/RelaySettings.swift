@@ -7,10 +7,18 @@ struct RelaySettings: Codable, Equatable {
     var port: Int
     var inboxDirectory: String
     var codexBundleIdentifier: String
-    var openImageInViewer: Bool
-    var viewerBundleIdentifier: String
-    var closeViewerWindow: Bool
+    var deliveryMode: RelayDeliveryMode
     var pasteDelayMilliseconds: Int
+
+    enum CodingKeys: String, CodingKey {
+        case token
+        case host
+        case port
+        case inboxDirectory
+        case codexBundleIdentifier
+        case deliveryMode
+        case pasteDelayMilliseconds
+    }
 
     static var defaultSettings: RelaySettings {
         RelaySettings(
@@ -19,11 +27,38 @@ struct RelaySettings: Codable, Equatable {
             port: 8787,
             inboxDirectory: FileLocations.defaultInboxDirectory.path,
             codexBundleIdentifier: "com.openai.codex",
-            openImageInViewer: true,
-            viewerBundleIdentifier: "com.apple.Preview",
-            closeViewerWindow: true,
+            deliveryMode: .codex,
             pasteDelayMilliseconds: 400
         )
+    }
+
+    init(
+        token: String,
+        host: String,
+        port: Int,
+        inboxDirectory: String,
+        codexBundleIdentifier: String,
+        deliveryMode: RelayDeliveryMode,
+        pasteDelayMilliseconds: Int
+    ) {
+        self.token = token
+        self.host = host
+        self.port = port
+        self.inboxDirectory = inboxDirectory
+        self.codexBundleIdentifier = codexBundleIdentifier
+        self.deliveryMode = deliveryMode
+        self.pasteDelayMilliseconds = pasteDelayMilliseconds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        token = try container.decode(String.self, forKey: .token)
+        host = try container.decode(String.self, forKey: .host)
+        port = try container.decode(Int.self, forKey: .port)
+        inboxDirectory = try container.decode(String.self, forKey: .inboxDirectory)
+        codexBundleIdentifier = try container.decode(String.self, forKey: .codexBundleIdentifier)
+        deliveryMode = try container.decodeIfPresent(RelayDeliveryMode.self, forKey: .deliveryMode) ?? .codex
+        pasteDelayMilliseconds = try container.decode(Int.self, forKey: .pasteDelayMilliseconds)
     }
 
     var listensOnPrivateNetwork: Bool {
@@ -35,10 +70,7 @@ struct RelaySettings: Codable, Equatable {
     }
 
     var phoneEndpoint: URL {
-        let hostName = listensOnPrivateNetwork
-            ? (NetworkIdentity.privateIPv4Address() ?? "127.0.0.1")
-            : "127.0.0.1"
-        return URL(string: "http://\(hostName):\(port)/v1/captures")!
+        URL(string: "http://\(phoneEndpointHost):\(port)/v1/captures")!
     }
 
     var pairingURL: URL {
@@ -51,10 +83,37 @@ struct RelaySettings: Codable, Equatable {
         ]
         return components.url!
     }
+
+    var compactPairingURL: URL {
+        var components = URLComponents()
+        components.scheme = "cmdcmd"
+        components.host = "pair"
+        components.queryItems = [
+            URLQueryItem(name: "e", value: "\(phoneEndpointHost):\(port)"),
+            URLQueryItem(name: "t", value: token)
+        ]
+        return components.url!
+    }
+
+    private var phoneEndpointHost: String {
+        listensOnPrivateNetwork
+            ? (NetworkIdentity.privateIPv4Address() ?? "127.0.0.1")
+            : "127.0.0.1"
+    }
+}
+
+enum RelayDeliveryMode: String, Codable, Equatable {
+    case codex
+    case reviewInbox
 }
 
 enum FileLocations {
     static var appSupportDirectory: URL {
+        if let override = ProcessInfo.processInfo.environment["CMDCMD_RELAY_APP_SUPPORT_DIR"],
+           !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+
         let base = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -121,4 +180,3 @@ enum TokenGenerator {
             .replacingOccurrences(of: "=", with: "")
     }
 }
-

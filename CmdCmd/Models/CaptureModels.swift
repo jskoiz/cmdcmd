@@ -100,7 +100,11 @@ struct PairingLink: Equatable {
     var token: String
 
     static func parse(_ rawValue: String) -> PairingLink? {
-        guard let url = URL(string: rawValue.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+        let normalized = rawValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "&amp;", with: "&")
+
+        guard let url = URL(string: normalized) else {
             return nil
         }
 
@@ -114,20 +118,42 @@ struct PairingLink: Equatable {
             return nil
         }
 
-        let endpoint = components.queryItems?
-            .first(where: { $0.name == "endpoint" })?
-            .value?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let token = components.queryItems?
-            .first(where: { $0.name == "token" })?
-            .value?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let endpoint = queryValue(["endpoint"], in: components)
+            ?? endpointFromCompactValue(queryValue(["e"], in: components))
+            ?? ""
+        let token = queryValue(["token", "t"], in: components) ?? ""
 
         guard !endpoint.isEmpty, !token.isEmpty else {
             return nil
         }
 
         return PairingLink(endpoint: endpoint, token: token)
+    }
+
+    private static func queryValue(_ names: [String], in components: URLComponents) -> String? {
+        components.queryItems?
+            .first(where: { names.contains($0.name) })?
+            .value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func endpointFromCompactValue(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else {
+            return nil
+        }
+
+        if let url = URL(string: value),
+           let scheme = url.scheme,
+           ["http", "https"].contains(scheme),
+           url.host() != nil {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            if components?.path.isEmpty == true || components?.path == "/" {
+                components?.path = "/v1/captures"
+            }
+            return components?.url?.absoluteString
+        }
+
+        return "http://\(value)/v1/captures"
     }
 }
 

@@ -105,7 +105,23 @@ final class RelayHTTPServer {
 
     private func handle(_ request: HTTPRequest) throws -> HTTPResponse {
         if request.method == "GET", request.path == "/healthz" {
-            return .json(statusCode: 200, body: ["relay": "cmdcmd-native", "status": "ok"])
+            let settings = settingsProvider()
+            let accessibility = settings.deliveryMode == .codex
+                ? (DesktopDelivery.accessibilityTrusted(prompt: false) ? "granted" : "required")
+                : "not-required"
+            return .json(
+                statusCode: 200,
+                body: [
+                    "relay": "cmdcmd-native",
+                    "status": "ok",
+                    "deliveryMode": settings.deliveryMode.rawValue,
+                    "accessibility": accessibility,
+                    "pid": String(ProcessInfo.processInfo.processIdentifier),
+                    "executablePath": Bundle.main.executablePath ?? CommandLine.arguments[0],
+                    "bundleIdentifier": Bundle.main.bundleIdentifier ?? "",
+                    "bundleVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+                ]
+            )
         }
 
         let settings = settingsProvider()
@@ -132,18 +148,23 @@ final class RelayHTTPServer {
 
         let capture = try CapturePayload.decode(from: request.body)
         let stored = try CaptureStorage.persist(capture, inboxDirectory: settings.inboxDirectory)
-        statusStore.accept(captureId: capture.captureId)
+        statusStore.accept(captureId: capture.captureId, deliveryMode: settings.deliveryMode)
         eventHandler(.accepted(capture.captureId))
 
         DispatchQueue.global(qos: .userInitiated).async { [statusStore, eventHandler] in
-            statusStore.delivering(captureId: capture.captureId)
+            statusStore.delivering(captureId: capture.captureId, deliveryMode: settings.deliveryMode)
             eventHandler(.delivering(capture.captureId))
             do {
-                try DesktopDelivery.deliver(capture: capture, stored: stored, settings: settings)
-                statusStore.delivered(captureId: capture.captureId)
+                switch settings.deliveryMode {
+                case .codex:
+                    try DesktopDelivery.deliver(capture: capture, stored: stored, settings: settings)
+                case .reviewInbox:
+                    try ReviewInboxDelivery.deliver(capture: capture, stored: stored, settings: settings)
+                }
+                statusStore.delivered(captureId: capture.captureId, deliveryMode: settings.deliveryMode)
                 eventHandler(.delivered(capture.captureId))
             } catch {
-                statusStore.failed(captureId: capture.captureId, error: error)
+                statusStore.failed(captureId: capture.captureId, error: error, deliveryMode: settings.deliveryMode)
                 eventHandler(.failed(error.localizedDescription))
             }
         }
@@ -153,6 +174,7 @@ final class RelayHTTPServer {
             body: [
                 "status": "accepted",
                 "captureId": capture.captureId,
+                "deliveryMode": settings.deliveryMode.rawValue,
                 "imagePath": stored.imagePath,
                 "metadataPath": stored.metadataPath,
                 "statusUrl": "/v1/captures/\(capture.captureId)/status"

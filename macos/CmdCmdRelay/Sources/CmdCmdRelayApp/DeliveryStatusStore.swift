@@ -11,46 +11,46 @@ final class DeliveryStatusStore {
     private var statuses: [String: DeliveryStatus] = [:]
     private let lock = NSLock()
 
-    func accept(captureId: String) {
+    func accept(captureId: String, deliveryMode: RelayDeliveryMode = .codex) {
         set(
             DeliveryStatus(
                 captureId: captureId,
                 status: "accepted",
-                message: "AppShot queued for Codex",
-                deliveryLane: "desktop-appshot"
+                message: copy(for: deliveryMode).accepted,
+                deliveryLane: deliveryMode.lane
             )
         )
     }
 
-    func delivering(captureId: String) {
+    func delivering(captureId: String, deliveryMode: RelayDeliveryMode = .codex) {
         set(
             DeliveryStatus(
                 captureId: captureId,
                 status: "delivering",
-                message: "Sending AppShot to Codex",
-                deliveryLane: "desktop-appshot"
+                message: copy(for: deliveryMode).delivering,
+                deliveryLane: deliveryMode.lane
             )
         )
     }
 
-    func delivered(captureId: String) {
+    func delivered(captureId: String, deliveryMode: RelayDeliveryMode = .codex) {
         set(
             DeliveryStatus(
                 captureId: captureId,
                 status: "delivered",
-                message: "AppShot sent to Codex",
-                deliveryLane: "desktop-appshot"
+                message: copy(for: deliveryMode).delivered,
+                deliveryLane: deliveryMode.lane
             )
         )
     }
 
-    func failed(captureId: String, error: Error) {
+    func failed(captureId: String, error: Error, deliveryMode: RelayDeliveryMode = .codex) {
         set(
             DeliveryStatus(
                 captureId: captureId,
                 status: "failed",
-                message: "Could not send AppShot: \(Self.truncate(error.localizedDescription))",
-                deliveryLane: "desktop-appshot"
+                message: "\(copy(for: deliveryMode).failedPrefix): \(Self.truncate(error.localizedDescription))",
+                deliveryLane: deliveryMode.lane
             )
         )
     }
@@ -73,5 +73,41 @@ final class DeliveryStatusStore {
         }
         return "\(value.prefix(limit))..."
     }
+
+    private func copy(for deliveryMode: RelayDeliveryMode) -> StatusCopy {
+        switch deliveryMode {
+        case .codex:
+            return StatusCopy(
+                accepted: "Screenshot queued for Codex",
+                delivering: "Sending screenshot to Codex",
+                delivered: "Screenshot sent to Codex",
+                failedPrefix: "Could not send screenshot"
+            )
+        case .reviewInbox:
+            return StatusCopy(
+                accepted: "Screenshot queued for review inbox",
+                delivering: "Saving screenshot to review inbox",
+                delivered: "Screenshot saved to review inbox",
+                failedPrefix: "Could not save screenshot"
+            )
+        }
+    }
 }
 
+private struct StatusCopy {
+    var accepted: String
+    var delivering: String
+    var delivered: String
+    var failedPrefix: String
+}
+
+private extension RelayDeliveryMode {
+    var lane: String {
+        switch self {
+        case .codex:
+            return "desktop-attachment"
+        case .reviewInbox:
+            return "review-inbox"
+        }
+    }
+}
