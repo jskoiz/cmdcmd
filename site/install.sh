@@ -11,7 +11,7 @@ LOG_DIR="$HOME/Library/Logs"
 OUT_LOG="$LOG_DIR/cmdcmd-relay.log"
 ERR_LOG="$LOG_DIR/cmdcmd-relay.err.log"
 RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://cmd.avmil.xyz/dl}"
-ARCHIVE_NAME="${CMDCMD_RELAY_ARCHIVE_NAME:-CmdCmdRelay-macOS-420570f.zip}"
+ARCHIVE_NAME="${CMDCMD_RELAY_ARCHIVE_NAME:-CmdCmdRelay-macOS-20260605-1.zip}"
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
 if [[ -n "$SCRIPT_SOURCE" && "$SCRIPT_SOURCE" != bash ]]; then
   ROOT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
@@ -134,7 +134,7 @@ PLIST
 
 wait_for_relay() {
   for _ in {1..40}; do
-    if curl -fsS "http://127.0.0.1:8787/healthz" >/dev/null 2>&1; then
+    if curl -fsS "http://127.0.0.1:8787/healthz" | grep -q "cmdcmd-native"; then
       return 0
     fi
     sleep 0.25

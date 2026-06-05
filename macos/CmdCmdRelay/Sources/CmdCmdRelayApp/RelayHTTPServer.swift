@@ -105,7 +105,7 @@ final class RelayHTTPServer {
 
     private func handle(_ request: HTTPRequest) throws -> HTTPResponse {
         if request.method == "GET", request.path == "/healthz" {
-            return .json(statusCode: 200, body: ["status": "ok"])
+            return .json(statusCode: 200, body: ["relay": "cmdcmd-native", "status": "ok"])
         }
 
         let settings = settingsProvider()
