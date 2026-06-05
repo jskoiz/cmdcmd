@@ -65,23 +65,16 @@ enum TerminalRelayCommand {
         let pairingURL = settings.pairingURL.absoluteString
 
         print("")
-        print("cmd+cmd Relay is ready")
-        print("1. Open cmd+cmd on iPhone.")
-        print("2. Go to Settings, then tap Scan Desktop QR.")
-        print("3. Scan this code to link the phone to this Mac.")
+        print("cmd+cmd Relay is ready and keeps running in the background.")
+        print("On iPhone: open cmd+cmd, go to Settings, tap Scan Desktop QR, then scan below.")
         print("")
 
         if let qr = terminalQRCode(for: pairingURL) {
             print(qr)
         } else {
             print("Pairing QR could not be rendered in this terminal.")
+            print("Pairing link: \(pairingURL)")
         }
-
-        print("")
-        print("Pairing link: \(pairingURL)")
-        print("Endpoint: \(settings.phoneEndpoint.absoluteString)")
-        print("")
-        print("The relay keeps running in the background after this Terminal closes.")
         print("")
     }
 
@@ -182,22 +175,14 @@ enum TerminalRelayCommand {
     private static func terminalQRCode(for value: String) -> String? {
         let filter = CIFilter.qrCodeGenerator()
         filter.message = Data(value.utf8)
-        filter.correctionLevel = "M"
+        filter.correctionLevel = "L"
 
         guard let output = filter.outputImage else {
             return nil
         }
 
-        let colored = output.applyingFilter(
-            "CIFalseColor",
-            parameters: [
-                "inputColor0": CIColor(red: 0, green: 0, blue: 0),
-                "inputColor1": CIColor(red: 1, green: 1, blue: 1)
-            ]
-        )
-
         let context = CIContext()
-        guard let image = context.createCGImage(colored, from: output.extent) else {
+        guard let image = context.createCGImage(output, from: output.extent) else {
             return nil
         }
 
@@ -205,30 +190,39 @@ enum TerminalRelayCommand {
         let quietZone = 4
         let width = bitmap.pixelsWide
         let height = bitmap.pixelsHigh
-        let blackCell = "\u{001B}[40m  "
-        let whiteCell = "\u{001B}[47m  "
+        let gridWidth = width + quietZone * 2
+        let gridHeight = height + quietZone * 2
         let reset = "\u{001B}[0m"
-        var lines: [String] = []
 
-        let blankLine = String(repeating: whiteCell, count: width + (quietZone * 2)) + reset
-        for _ in 0..<quietZone {
-            lines.append(blankLine)
+        // A dark module reads as black; light modules and the quiet zone read
+        // as white. The quiet zone is anything outside the QR bitmap.
+        func isDark(_ gridX: Int, _ gridY: Int) -> Bool {
+            let x = gridX - quietZone
+            let y = gridY - quietZone
+            guard x >= 0, x < width, y >= 0, y < height else {
+                return false
+            }
+            let white = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceGray)?.whiteComponent ?? 1
+            return white < 0.5
         }
 
-        for y in 0..<height {
-            var line = String(repeating: whiteCell, count: quietZone)
-            for x in 0..<width {
-                let color = bitmap.colorAt(x: x, y: y)
-                let white = color?.usingColorSpace(.deviceGray)?.whiteComponent ?? 1
-                line += white < 0.5 ? blackCell : whiteCell
+        // Pack two vertical modules into one row with the upper half block:
+        // the foreground paints the top module, the background the bottom one.
+        // This halves both width and height versus one cell per module.
+        var lines: [String] = []
+        var gridY = 0
+        while gridY < gridHeight {
+            var line = ""
+            for gridX in 0..<gridWidth {
+                let top = isDark(gridX, gridY)
+                let bottom = (gridY + 1 < gridHeight) ? isDark(gridX, gridY + 1) : false
+                let foreground = top ? 30 : 97
+                let background = bottom ? 40 : 107
+                line += "\u{001B}[\(foreground);\(background)m\u{2580}"
             }
-            line += String(repeating: whiteCell, count: quietZone)
             line += reset
             lines.append(line)
-        }
-
-        for _ in 0..<quietZone {
-            lines.append(blankLine)
+            gridY += 2
         }
 
         return lines.joined(separator: "\n")

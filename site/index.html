@@ -273,18 +273,14 @@ prepare_pairing
 install_launch_agent
 wait_for_relay
 request_accessibility
-print_pairing_qr
 
 cat &lt;&lt;EOF
 Installed: $APP_PATH
 Background service: $LAUNCH_AGENT_LABEL
 Logs: $ERR_LOG
+EOF
 
-Next:
-1. Open cmd+cmd on iPhone.
-2. In Settings, tap Scan Desktop QR and scan the QR above.
-3. Send AppShots to Codex Desktop.
-EOF</pre>
+print_pairing_qr</pre>
                     <button class="copy" data-copy-pre>Copy</button>
                   </div>
                 </details>
