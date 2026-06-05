@@ -116,6 +116,7 @@ struct CaptureView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(imageData == nil ? "Choose image" : "Replace image")
+        .frame(maxWidth: .infinity)
         .frame(height: height)
     }
 
@@ -144,25 +145,48 @@ struct CaptureView: View {
                 previewImage
             }
         }
-        .frame(height: height)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(height: height, alignment: .center)
     }
 
     @ViewBuilder
     private var previewImage: some View {
         if let imageData, let image = UIImage(data: imageData) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: 168, maxHeight: 238)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(.white.opacity(0.42), lineWidth: 1)
+            GeometryReader { proxy in
+                let size = previewSize(for: image, in: proxy.size)
+
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size.width, height: size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .strokeBorder(.white.opacity(0.42), lineWidth: 1)
+                    }
+                    .shadow(color: .black.opacity(0.16), radius: 18, x: 0, y: 12)
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
                 }
-                .shadow(color: .black.opacity(0.16), radius: 18, x: 0, y: 12)
         } else {
             EmptyView()
         }
+    }
+
+    private func previewSize(for image: UIImage, in containerSize: CGSize) -> CGSize {
+        let horizontalInset: CGFloat = 24
+        let verticalInset: CGFloat = 8
+        let availableWidth = max(containerSize.width - horizontalInset * 2, 1)
+        let availableHeight = max(containerSize.height - verticalInset * 2, 1)
+        let aspectRatio = max(image.size.width, 1) / max(image.size.height, 1)
+
+        var width = availableWidth
+        var height = width / aspectRatio
+        if height > availableHeight {
+            height = availableHeight
+            width = height * aspectRatio
+        }
+
+        return CGSize(width: width, height: height)
     }
 
     private var sendButton: some View {
