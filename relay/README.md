@@ -1,10 +1,13 @@
-# cmd+cmd Relay
+# cmd+cmd Node Relay
 
-This private relay receives the JSON payload posted by the cmd+cmd iOS app,
+This developer relay receives the JSON payload posted by the cmd+cmd iOS app,
 saves the screenshot into a local inbox, opens it on the Mac, and uses the
 relay's native desktop helper to paste the image plus OCR/context text into the
 visible Codex composer.
 The relay has one delivery path: Codex Desktop attachment.
+
+For end-user distribution, prefer the native Mac app in `macos/CmdCmdRelay`.
+This Node relay remains useful for protocol tests and fast local development.
 
 Remote connections are useful for controlling a trusted Codex host from another
 device. Keep this relay as the only HTTP endpoint exposed to cmd+cmd, and keep

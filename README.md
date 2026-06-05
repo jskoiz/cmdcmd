@@ -53,17 +53,48 @@ The app sends JSON to the configured relay endpoint:
 }
 ```
 
+## Ship-Ready Setup
+
+cmd+cmd is now designed as two user-facing pieces:
+
+- `cmd+cmd` for iPhone, distributed through TestFlight or the App Store.
+- `cmd+cmd Relay.app` for Mac, distributed as a signed and notarized download.
+
+The Mac relay app is the preferred setup path for users. It generates a
+per-user bearer token, runs the local screenshot relay, shows a pairing code for
+the iPhone app, and requests only the macOS Accessibility permission needed to
+paste into the visible Codex Desktop composer.
+
+User install:
+
+```bash
+curl -fsSL https://cmd.avmil.xyz/install.sh | bash
+```
+
+Release build:
+
+```bash
+./scripts/package_macos.sh
+```
+
+Set `DEVELOPER_ID_APPLICATION` to sign the Mac app. Notarize the exported zip
+before publishing it to the release URL used by `scripts/install-macos.sh`.
+
 ## Private Relay
 
-The repo includes a private relay implementation in `relay/`. It receives the
-app payload, saves the screenshot and metadata to a local inbox, opens the
-screenshot on the Mac, copies it to the pasteboard, activates Codex Desktop,
-and pastes the image into the visible composer.
+The repo includes two relay implementations:
+
+- `macos/CmdCmdRelay`: the native Mac app for real users.
+- `relay/`: the Node.js developer relay for local testing and protocol work.
+
+Both relays receive the app payload, save the screenshot and metadata to a
+local inbox, open the screenshot on the Mac, copy it to the pasteboard, activate
+Codex Desktop, and paste the image into the visible composer.
 
 The iOS app polls the relay status URL after upload so it can distinguish a
 queued receipt from a Codex Desktop attachment or a delivery failure.
 
-Quick start:
+Developer relay quick start:
 
 ```bash
 cd relay
@@ -77,3 +108,12 @@ iOS Simulator, or use a trusted private network URL for a physical phone.
 Do not expose the relay on a shared or public network.
 
 See `relay/README.md` for setup and smoke test instructions.
+
+## Website
+
+The static setup site lives in `site/` and can be deployed as-is:
+
+```bash
+cd site
+python3 -m http.server 4173
+```

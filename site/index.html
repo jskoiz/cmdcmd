@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cmd+cmd</title>
+    <meta
+      name="description"
+      content="Private iPhone screenshots into the frontmost Codex Desktop chat."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="nav" aria-label="Primary navigation">
+      <a class="brand" href="/" aria-label="cmd+cmd home">
+        <img src="./assets/cmdcmd-logo.png" alt="" />
+        <span>cmd+cmd</span>
+      </a>
+      <nav>
+        <a href="#install">Install</a>
+        <a href="#security">Security</a>
+        <a href="https://github.com/jskoiz/CodexShot">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <h1 id="hero-title">Phone screenshots. Frontmost Codex chat.</h1>
+        <p>
+          A private Mac relay and iPhone shortcut for sending screenshots into
+          the Codex Desktop composer.
+        </p>
+        <div class="commands" aria-label="Install commands">
+          <pre><code>curl -fsSL https://cmd.avmil.xyz/install.sh | bash</code></pre>
+          <pre><code>open "cmd+cmd Relay.app"  # scan pairing code</code></pre>
+        </div>
+      </section>
+
+      <section id="install" class="section">
+        <div>
+          <h2>Install Mac</h2>
+          <p>Install the signed relay app. No Xcode. No npm. No sudo.</p>
+        </div>
+        <pre><code>./scripts/install-macos.sh --start-at-login</code></pre>
+      </section>
+
+      <section class="section">
+        <div>
+          <h2>Pair iPhone</h2>
+          <p>Open cmd+cmd Relay, enable private-network mode, scan the code.</p>
+        </div>
+        <ol>
+          <li>Install cmd+cmd on iPhone.</li>
+          <li>Scan the pairing code.</li>
+          <li>Run the shortcut or share a screenshot.</li>
+        </ol>
+      </section>
+
+      <section id="security" class="section">
+        <div>
+          <h2>Security Model</h2>
+          <p>Local relay. Per-user bearer token. Codex credentials untouched.</p>
+        </div>
+        <ul>
+          <li>No Codex Desktop patching.</li>
+          <li>No public endpoint by default.</li>
+          <li>Local screenshot storage only.</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <div>
+          <h2>Ship Notes</h2>
+          <p>Build, sign, notarize, publish the zip, then point install.sh at it.</p>
+        </div>
+        <pre><code>DEVELOPER_ID_APPLICATION="Developer ID Application: ..." ./scripts/package_macos.sh</code></pre>
+      </section>
+    </main>
+  </body>
+</html>
+

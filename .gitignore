@@ -1,9 +1,12 @@
 .DS_Store
 DerivedData/
 build/
+dist/
 *.xcuserstate
 xcuserdata/
 .xcodebuildmcp/
+.wrangler/
+macos/CmdCmdRelay/.build/
 node_modules/
 relay/.env
 relay/inbox/

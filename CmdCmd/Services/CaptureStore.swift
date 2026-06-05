@@ -21,6 +21,13 @@ final class CaptureStore {
         CaptureRepository.saveSettings(updatedSettings)
     }
 
+    func applyPairing(endpoint: String, apiToken: String) {
+        var updatedSettings = settings
+        updatedSettings.endpoint = endpoint
+        updatedSettings.apiToken = apiToken
+        saveSettings(updatedSettings)
+    }
+
     func reload() {
         settings = CaptureRepository.loadSettings()
         records = CaptureRepository.loadRecords()
