@@ -169,20 +169,8 @@ struct CaptureView: View {
     }
 
     private func previewSize(for image: UIImage, in containerSize: CGSize) -> CGSize {
-        let horizontalInset: CGFloat = 24
-        let verticalInset: CGFloat = 8
-        let availableWidth = max(containerSize.width - horizontalInset * 2, 1)
-        let availableHeight = max(containerSize.height - verticalInset * 2, 1)
-        let aspectRatio = max(image.size.width, 1) / max(image.size.height, 1)
-
-        var width = availableWidth
-        var height = width / aspectRatio
-        if height > availableHeight {
-            height = availableHeight
-            width = height * aspectRatio
-        }
-
-        return CGSize(width: width, height: height)
+        let inset = CGSize(width: containerSize.width - 48, height: containerSize.height - 16)
+        return inset.aspectFitting(imageSize: image.size)
     }
 
     private var sendButton: some View {
@@ -229,7 +217,7 @@ struct CaptureView: View {
                 imageData: imageData,
                 message: feedbackMessage,
                 openSettings: openSettingsFromFailure,
-                settingsActionTitle: failureSettingsActionTitle
+                settingsActionTitle: CaptureFailurePresentation.settingsActionTitle(for: feedbackMessage)
             )
             .id(feedbackToken)
             .transition(.opacity)
@@ -292,15 +280,6 @@ struct CaptureView: View {
             openSettings()
         case .systemApp:
             isShowingFailureHelp = true
-        }
-    }
-
-    private var failureSettingsActionTitle: String {
-        switch CaptureFailurePresentation.settingsDestination(for: feedbackMessage) {
-        case .relay:
-            "Open Relay Settings"
-        case .systemApp:
-            "Show Fix"
         }
     }
 

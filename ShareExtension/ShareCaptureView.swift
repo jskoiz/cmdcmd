@@ -46,7 +46,7 @@ struct ShareCaptureView: View {
             imageData: input.imageData,
             message: phase.feedbackMessage,
             openSettings: openSettingsForCurrentFailure,
-            settingsActionTitle: failureSettingsActionTitle
+            settingsActionTitle: CaptureFailurePresentation.settingsActionTitle(for: phase.feedbackMessage)
         )
     }
 
@@ -141,15 +141,6 @@ struct ShareCaptureView: View {
         }
     }
 
-    private var failureSettingsActionTitle: String {
-        switch CaptureFailurePresentation.settingsDestination(for: phase.feedbackMessage) {
-        case .relay:
-            "Open Relay Settings"
-        case .systemApp:
-            "Show Fix"
-        }
-    }
-
     private var failureHelpMessage: String {
         if let message = phase.feedbackMessage, !message.isEmpty {
             return "\(message)\n\nIf iOS shows a Local Network toggle for cmd+cmd, turn it on. If that toggle is missing, open cmd+cmd relay settings and confirm the endpoint matches the Mac relay URL."
@@ -229,15 +220,6 @@ private enum ShareSendPhase: Equatable {
             nil
         case .failed(let message):
             message
-        }
-    }
-
-    var isWorking: Bool {
-        switch self {
-        case .loading, .sending:
-            true
-        case .sent, .failed:
-            false
         }
     }
 

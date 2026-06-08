@@ -221,10 +221,6 @@ enum CapturePipeline {
     }
 }
 
-private func elapsedMilliseconds(since date: Date) -> Int {
-    Int(Date().timeIntervalSince(date) * 1000)
-}
-
 private enum VisibleAppInferer {
     private struct Rule {
         var name: String

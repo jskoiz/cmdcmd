@@ -21,10 +21,6 @@ enum Theme {
         light: UIColor(red: 0.36, green: 0.36, blue: 0.38, alpha: 1),
         dark: UIColor(red: 0.82, green: 0.82, blue: 0.86, alpha: 1)
     )
-    static let warning = adaptiveColor(
-        light: UIColor(red: 0.42, green: 0.42, blue: 0.44, alpha: 1),
-        dark: UIColor(red: 0.80, green: 0.80, blue: 0.84, alpha: 1)
-    )
     static let secondaryText = adaptiveColor(
         light: UIColor.secondaryLabel,
         dark: UIColor(red: 0.76, green: 0.76, blue: 0.80, alpha: 1)
@@ -72,11 +68,7 @@ enum Theme {
     // MARK: Spacing scale
 
     enum Space {
-        static let xs: CGFloat = 6
-        static let sm: CGFloat = 10
         static let md: CGFloat = 16
-        static let lg: CGFloat = 22
-        static let xl: CGFloat = 30
     }
 
     // MARK: Corner radii
@@ -84,7 +76,6 @@ enum Theme {
     enum Radius {
         static let card: CGFloat = 32
         static let panel: CGFloat = 26
-        static let pill: CGFloat = 22
     }
 
     private static func adaptiveColor(light: UIColor, dark: UIColor) -> Color {
@@ -92,8 +83,4 @@ enum Theme {
             traits.userInterfaceStyle == .dark ? dark : light
         })
     }
-}
-
-extension ShapeStyle where Self == Color {
-    static var brand: Color { Theme.brand }
 }

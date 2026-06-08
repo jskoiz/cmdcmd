@@ -65,11 +65,3 @@ final class CaptureStore {
         return record
     }
 }
-
-private func tokenSuffix(_ token: String) -> String {
-    let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else {
-        return "none"
-    }
-    return String(trimmed.suffix(6))
-}

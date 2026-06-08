@@ -328,15 +328,3 @@ struct RelayClient {
         return request
     }
 }
-
-private func elapsedMilliseconds(since date: Date) -> Int {
-    Int(Date().timeIntervalSince(date) * 1000)
-}
-
-private func tokenSuffix(_ token: String) -> String {
-    let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else {
-        return "none"
-    }
-    return String(trimmed.suffix(6))
-}

@@ -43,6 +43,7 @@
 		110000000000000000000206 /* CapturePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000007 /* CapturePipeline.swift */; };
 		110000000000000000000207 /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000000B /* GlassPanel.swift */; };
 		110000000000000000000208 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000020 /* ShareViewController.swift */; };
+		11000000000000000000020E /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000009 /* Formatters.swift */; };
 		110000000000000000000209 /* ShareCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000021 /* ShareCaptureView.swift */; };
 		110000000000000000000301 /* CmdCmdShare.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 110000000000000000000031 /* CmdCmdShare.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -331,6 +332,7 @@
 				11000000000000000000020C /* CommandSymbolSpinner.swift in Sources */,
 				110000000000000000000208 /* ShareViewController.swift in Sources */,
 				110000000000000000000209 /* ShareCaptureView.swift in Sources */,
+				11000000000000000000020E /* Formatters.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
