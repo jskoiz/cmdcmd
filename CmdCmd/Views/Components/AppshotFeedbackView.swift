@@ -266,18 +266,7 @@ struct AppshotCaptureFeedbackView: View {
     }
 
     private func previewSize(for image: UIImage, in containerSize: CGSize) -> CGSize {
-        let availableWidth = max(containerSize.width, 1)
-        let availableHeight = max(containerSize.height, 1)
-        let aspectRatio = max(image.size.width, 1) / max(image.size.height, 1)
-
-        var width = availableWidth
-        var height = width / aspectRatio
-        if height > availableHeight {
-            height = availableHeight
-            width = height * aspectRatio
-        }
-
-        return CGSize(width: width, height: height)
+        containerSize.aspectFitting(imageSize: image.size)
     }
 
     @ViewBuilder
@@ -406,16 +395,8 @@ private struct CommandDeliveryStatusView: View {
     }
 
     private var subtitle: String {
-        switch phase {
-        case .preparing:
-            "Preparing"
-        case .sending:
-            "Sending to Codex"
-        case .sent:
-            "Sent to Codex"
-        case .failed:
-            "Could not send"
-        }
+        // Mirrors phase.title, but uses shorter copy for .sent so it fits one line.
+        phase == .sent ? "Sent to Codex" : phase.title
     }
 
     private func applyPhase(animated: Bool) {
@@ -469,6 +450,24 @@ private struct CommandDeliveryStatusView: View {
                 -360
             }
         }
+    }
+}
+
+extension CGSize {
+    /// Largest size preserving `imageSize`'s aspect ratio that fits within this size.
+    func aspectFitting(imageSize: CGSize) -> CGSize {
+        let availableWidth = max(width, 1)
+        let availableHeight = max(height, 1)
+        let aspectRatio = max(imageSize.width, 1) / max(imageSize.height, 1)
+
+        var fittedWidth = availableWidth
+        var fittedHeight = fittedWidth / aspectRatio
+        if fittedHeight > availableHeight {
+            fittedHeight = availableHeight
+            fittedWidth = fittedHeight * aspectRatio
+        }
+
+        return CGSize(width: fittedWidth, height: fittedHeight)
     }
 }
 

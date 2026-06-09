@@ -193,8 +193,7 @@ struct SettingsView: View {
     private func testRelayConnection() async {
         isCheckingRelay = true
         relayCheckMessage = ""
-        let message = await RelayDiagnostics.check(settings: draft)
-        relayCheckMessage = message
+        relayCheckMessage = await RelayClient(settings: draft).checkReadiness().message
         isCheckingRelay = false
     }
 
@@ -206,12 +205,6 @@ struct SettingsView: View {
         showsManualRelay = false
         store.applyPairing(endpoint: pairing.endpoint, apiToken: pairing.token)
         withAnimation { savedMessage = "Desktop linked" }
-    }
-}
-
-private enum RelayDiagnostics {
-    static func check(settings: RelaySettings) async -> String {
-        await RelayClient(settings: settings).checkReadiness().message
     }
 }
 

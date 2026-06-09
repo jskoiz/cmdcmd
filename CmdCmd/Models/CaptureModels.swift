@@ -187,6 +187,15 @@ enum CaptureFailurePresentation {
 
         return .relay
     }
+
+    static func settingsActionTitle(for message: String?) -> String {
+        switch settingsDestination(for: message) {
+        case .relay:
+            return "Open Relay Settings"
+        case .systemApp:
+            return "Show Fix"
+        }
+    }
 }
 
 struct CaptureImageMetadata: Codable, Hashable {

@@ -2,20 +2,17 @@ import SwiftUI
 
 struct GlassPanel<Content: View>: View {
     var tint: Color?
-    var interactive: Bool
     var cornerRadius: CGFloat
     var padding: CGFloat
     @ViewBuilder var content: Content
 
     init(
         tint: Color? = nil,
-        interactive: Bool = false,
         cornerRadius: CGFloat = 26,
         padding: CGFloat = 16,
         @ViewBuilder content: () -> Content
     ) {
         self.tint = tint
-        self.interactive = interactive
         self.cornerRadius = cornerRadius
         self.padding = padding
         self.content = content()
@@ -25,7 +22,7 @@ struct GlassPanel<Content: View>: View {
         if #available(iOS 26.0, *) {
             content
                 .padding(padding)
-                .glassEffect(.regular.tint(tint).interactive(interactive), in: .rect(cornerRadius: cornerRadius))
+                .glassEffect(.regular.tint(tint), in: .rect(cornerRadius: cornerRadius))
         } else {
             content
                 .padding(padding)
@@ -85,32 +82,6 @@ struct GlassIconButton: View {
     }
 }
 
-struct PrimaryGlassButton<Label: View>: View {
-    var action: () -> Void
-    @ViewBuilder var label: Label
-
-    init(action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
-        self.action = action
-        self.label = label()
-    }
-
-    var body: some View {
-        if #available(iOS 26.0, *) {
-            Button(action: action) {
-                label
-            }
-            .buttonStyle(.glassProminent)
-            .controlSize(.large)
-        } else {
-            Button(action: action) {
-                label
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-        }
-    }
-}
-
 struct HeroSendButton<Label: View>: View {
     var isBusy: Bool
     var action: () -> Void
@@ -157,29 +128,5 @@ struct HeroSendButton<Label: View>: View {
                 .onChanged { _ in isPressed = true }
                 .onEnded { _ in isPressed = false }
         )
-    }
-}
-
-struct SecondaryGlassButton<Label: View>: View {
-    var action: () -> Void
-    @ViewBuilder var label: Label
-
-    init(action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
-        self.action = action
-        self.label = label()
-    }
-
-    var body: some View {
-        if #available(iOS 26.0, *) {
-            Button(action: action) {
-                label
-            }
-            .buttonStyle(.glass)
-        } else {
-            Button(action: action) {
-                label
-            }
-            .buttonStyle(.bordered)
-        }
     }
 }
