@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-export const DESKTOP_HELPER_VERSION = "2026-06-05.5";
+export const DESKTOP_HELPER_VERSION = "2026-06-05.7";
 
 export async function ensureDesktopHelper(options = {}) {
   const cacheDir =
@@ -56,10 +56,8 @@ import Foundation
 
 struct Config {
     var imagePath: String?
-    var textPath: String?
+    var contextPath: String?
     var codexBundle = "com.openai.codex"
-    var viewerBundle: String?
-    var closeViewer = false
     var focusDelayMs = 400
     var composerBottomOffset = 70
     var dryRun = false
@@ -95,14 +93,10 @@ func parseArgs() -> Config {
         switch arg {
         case "--image-path":
             config.imagePath = takeValue(arg)
-        case "--text-path":
-            config.textPath = takeValue(arg)
+        case "--context-path":
+            config.contextPath = takeValue(arg)
         case "--codex-bundle":
             config.codexBundle = takeValue(arg)
-        case "--viewer-bundle":
-            config.viewerBundle = takeValue(arg)
-        case "--close-viewer":
-            config.closeViewer = true
         case "--focus-delay-ms":
             config.focusDelayMs = parsePositiveInt(takeValue(arg), name: arg)
         case "--composer-bottom-offset":
@@ -175,24 +169,18 @@ func copyImageToPasteboard(_ imagePath: String) {
     pasteboard.setData(tiff, forType: .tiff)
 }
 
-func copyTextToPasteboard(_ text: String) {
+func copyFileToPasteboard(_ filePath: String) {
+    let url = URL(fileURLWithPath: filePath)
+    guard FileManager.default.fileExists(atPath: url.path) else {
+        fail("could not find context attachment: \(filePath)", code: 66)
+    }
+
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
-    pasteboard.setString(text, forType: .string)
-}
-
-func attachmentText(from path: String?) -> String? {
-    guard let path else {
-        return nil
+    if pasteboard.writeObjects([url as NSURL]) {
+        return
     }
-
-    do {
-        let text = try String(contentsOfFile: path, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.isEmpty ? nil : text
-    } catch {
-        fail("could not read OCR text sidecar: \(path)", code: 66)
-    }
+    pasteboard.setString(url.absoluteString, forType: .fileURL)
 }
 
 func focusedWindowFrame(for app: NSRunningApplication) -> CGRect {
@@ -209,17 +197,8 @@ func focusedWindowFrame(for app: NSRunningApplication) -> CGRect {
 
     var positionRef: CFTypeRef?
     var sizeRef: CFTypeRef?
-    let positionResult = AXUIElementCopyAttributeValue(
-        window,
-        kAXPositionAttribute as CFString,
-        &positionRef
-    )
-    let sizeResult = AXUIElementCopyAttributeValue(
-        window,
-        kAXSizeAttribute as CFString,
-        &sizeRef
-    )
-
+    let positionResult = AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionRef)
+    let sizeResult = AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeRef)
     guard
         positionResult == .success,
         sizeResult == .success,
@@ -283,6 +262,10 @@ func postClick(_ source: CGEventSource, point: CGPoint) {
 }
 
 func pasteIntoCodex(app: NSRunningApplication, config: Config) {
+    guard let imagePath = config.imagePath else {
+        fail("--image-path is required", code: 64)
+    }
+
     let source = eventSource()
     let frame = focusedWindowFrame(for: app)
     let clickPoint = CGPoint(
@@ -295,135 +278,15 @@ func pasteIntoCodex(app: NSRunningApplication, config: Config) {
     usleep(100_000)
     postClick(source, point: clickPoint)
     usleep(150_000)
+
+    copyImageToPasteboard(imagePath)
     postPaste(source)
 
-    if let text = attachmentText(from: config.textPath) {
+    if let contextPath = config.contextPath {
         usleep(300_000)
-        copyTextToPasteboard(text)
+        copyFileToPasteboard(contextPath)
         postPaste(source)
     }
-}
-
-func title(for window: AXUIElement) -> String {
-    var titleRef: CFTypeRef?
-    let result = AXUIElementCopyAttributeValue(
-        window,
-        kAXTitleAttribute as CFString,
-        &titleRef
-    )
-    guard result == .success, let title = titleRef as? String else {
-        return ""
-    }
-    return title
-}
-
-func closeButton(for window: AXUIElement) -> AXUIElement? {
-    var closeButtonRef: CFTypeRef?
-    let result = AXUIElementCopyAttributeValue(
-        window,
-        kAXCloseButtonAttribute as CFString,
-        &closeButtonRef
-    )
-    guard result == .success, closeButtonRef != nil else {
-        return nil
-    }
-    return (closeButtonRef as! AXUIElement)
-}
-
-func windows(for appElement: AXUIElement) -> [AXUIElement] {
-    var windowsRef: CFTypeRef?
-    let result = AXUIElementCopyAttributeValue(
-        appElement,
-        kAXWindowsAttribute as CFString,
-        &windowsRef
-    )
-    guard result == .success, let windows = windowsRef as? [AXUIElement] else {
-        return []
-    }
-    return windows
-}
-
-func focusViewerWindow(appElement: AXUIElement, window: AXUIElement) {
-    AXUIElementSetAttributeValue(
-        appElement,
-        kAXFrontmostAttribute as CFString,
-        kCFBooleanTrue
-    )
-    AXUIElementSetAttributeValue(
-        appElement,
-        kAXFocusedWindowAttribute as CFString,
-        window
-    )
-    AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-}
-
-func pressCommandW() {
-    let source = eventSource()
-    postKey(source, key: 55, down: true, flags: .maskCommand)
-    postKey(source, key: 13, down: true, flags: .maskCommand)
-    postKey(source, key: 13, down: false, flags: .maskCommand)
-    postKey(source, key: 55, down: false)
-}
-
-func quitViewerIfEmpty(_ viewer: NSRunningApplication, appElement: AXUIElement) {
-    usleep(250_000)
-    guard windows(for: appElement).isEmpty else {
-        return
-    }
-
-    viewer.terminate()
-    let deadline = Date().addingTimeInterval(1.0)
-    while !viewer.isTerminated && Date() < deadline {
-        usleep(50_000)
-    }
-
-    if !viewer.isTerminated {
-        viewer.forceTerminate()
-    }
-}
-
-func closeViewerWindow(config: Config, codex: NSRunningApplication) {
-    guard
-        config.closeViewer,
-        let viewerBundle = config.viewerBundle,
-        let viewer = runningApp(bundleID: viewerBundle)
-    else {
-        return
-    }
-
-    let viewerElement = AXUIElementCreateApplication(viewer.processIdentifier)
-    let windows = windows(for: viewerElement)
-    guard !windows.isEmpty else {
-        quitViewerIfEmpty(viewer, appElement: viewerElement)
-        _ = codex.activate(options: [.activateIgnoringOtherApps])
-        return
-    }
-
-    let imageURL = URL(fileURLWithPath: config.imagePath ?? "")
-    let fileName = imageURL.lastPathComponent
-    let fileStem = imageURL.deletingPathExtension().lastPathComponent
-    let targetWindow = windows.first { window in
-        let windowTitle = title(for: window)
-        return (!fileName.isEmpty && windowTitle.contains(fileName)) ||
-            (!fileStem.isEmpty && windowTitle.contains(fileStem))
-    } ?? windows[0]
-
-    var closedTarget = false
-
-    if let closeButton = closeButton(for: targetWindow),
-       AXUIElementPerformAction(closeButton, kAXPressAction as CFString) == .success {
-        closedTarget = true
-    }
-
-    if !closedTarget {
-        focusViewerWindow(appElement: viewerElement, window: targetWindow)
-        _ = viewer.activate(options: [.activateIgnoringOtherApps])
-        usleep(100_000)
-        pressCommandW()
-    }
-
-    quitViewerIfEmpty(viewer, appElement: viewerElement)
-    _ = codex.activate(options: [.activateIgnoringOtherApps])
 }
 
 let config = parseArgs()
@@ -434,23 +297,19 @@ guard let imagePath = config.imagePath else {
 if config.dryRun {
     print("Codex: \(config.codexBundle)")
     print("Image: \(imagePath)")
-    print("Text: \(config.textPath ?? "(none)")")
-    print("Viewer: \(config.viewerBundle ?? "(none)")")
-    print("Close viewer: \(config.closeViewer ? "yes" : "no")")
+    print("Context attachment: \(config.contextPath ?? "(none)")")
     print("Focus delay: \(config.focusDelayMs)ms")
-    print("Would paste: no")
+    print("Would open viewer: no")
+    print("Would paste inline text: no")
     exit(0)
 }
 
 requireAccessibilityTrust()
-copyImageToPasteboard(imagePath)
-
 guard let codex = launchOrActivate(bundleID: config.codexBundle) else {
     fail("could not activate Codex app bundle \(config.codexBundle)", code: 69)
 }
 
 Thread.sleep(forTimeInterval: Double(config.focusDelayMs) / 1000.0)
 pasteIntoCodex(app: codex, config: config)
-closeViewerWindow(config: config, codex: codex)
-print("AppShot sent to Codex.")
+print("Screenshot sent to Codex.")
 `;

@@ -20,7 +20,15 @@ const OBSOLETE_ENV_KEYS = [
   "CMDCMD_APPSHOT_NO_PRIME",
   "CMDCMD_APPSHOT_CODEX_DELAY",
   "CMDCMD_APPSHOT_RESTORE_DELAY",
-  "CMDCMD_APPSHOT_HOLD_DELAY"
+  "CMDCMD_APPSHOT_HOLD_DELAY",
+  "CMDCMD_APPSHOT_OPEN_VIEWER",
+  "CMDCMD_APPSHOT_VIEWER_BUNDLE",
+  "CMDCMD_APPSHOT_CLOSE_VIEWER",
+  "CMDCMD_APPSHOT_OPEN_DELAY_MS",
+  "CMDCMD_APPSHOT_OPEN_TIMEOUT_MS",
+  "CMDCMD_APPSHOT_CODEX_BUNDLE",
+  "CMDCMD_APPSHOT_PASTE_DELAY_MS",
+  "CMDCMD_APPSHOT_PASTE_TIMEOUT_MS"
 ];
 
 export class ConfigError extends Error {
@@ -57,34 +65,16 @@ export function loadConfig(env = process.env, options = {}) {
       env.CMDCMD_MAX_BODY_BYTES ?? "12500000",
       "CMDCMD_MAX_BODY_BYTES"
     ),
-    appshot: {
-      openImageInViewer: parseBooleanDefault(
-        env.CMDCMD_APPSHOT_OPEN_VIEWER,
-        false
-      ),
-      viewerBundle:
-        trim(env.CMDCMD_APPSHOT_VIEWER_BUNDLE) || "com.apple.Preview",
-      closeViewerWindow: parseBooleanDefault(
-        env.CMDCMD_APPSHOT_CLOSE_VIEWER,
-        true
-      ),
-      openDelayMs: parsePositiveInteger(
-        env.CMDCMD_APPSHOT_OPEN_DELAY_MS ?? "750",
-        "CMDCMD_APPSHOT_OPEN_DELAY_MS"
-      ),
-      openTimeoutMs: parsePositiveInteger(
-        env.CMDCMD_APPSHOT_OPEN_TIMEOUT_MS ?? "5000",
-        "CMDCMD_APPSHOT_OPEN_TIMEOUT_MS"
-      ),
+    desktopAttachment: {
       codexBundle:
-        trim(env.CMDCMD_APPSHOT_CODEX_BUNDLE) || "com.openai.codex",
+        trim(env.CMDCMD_DESKTOP_CODEX_BUNDLE) || "com.openai.codex",
       pasteDelayMs: parsePositiveInteger(
-        env.CMDCMD_APPSHOT_PASTE_DELAY_MS ?? "400",
-        "CMDCMD_APPSHOT_PASTE_DELAY_MS"
+        env.CMDCMD_DESKTOP_PASTE_DELAY_MS ?? "400",
+        "CMDCMD_DESKTOP_PASTE_DELAY_MS"
       ),
       pasteTimeoutMs: parsePositiveInteger(
-        env.CMDCMD_APPSHOT_PASTE_TIMEOUT_MS ?? "10000",
-        "CMDCMD_APPSHOT_PASTE_TIMEOUT_MS"
+        env.CMDCMD_DESKTOP_PASTE_TIMEOUT_MS ?? "10000",
+        "CMDCMD_DESKTOP_PASTE_TIMEOUT_MS"
       )
     }
   };
@@ -98,7 +88,7 @@ function rejectObsoleteEnv(env) {
   const obsoleteKey = OBSOLETE_ENV_KEYS.find((key) => trim(env[key]));
   if (obsoleteKey) {
     throw new ConfigError(
-      `${obsoleteKey} is no longer supported. Desktop Appshot is the only relay delivery path.`
+      `${obsoleteKey} is no longer supported. Desktop attachments are the only relay delivery path.`
     );
   }
 }
@@ -117,14 +107,6 @@ function parsePositiveInteger(value, name) {
     throw new ConfigError(`${name} must be a positive integer.`);
   }
   return parsed;
-}
-
-function parseBoolean(value) {
-  return ["1", "true", "yes", "on"].includes(trim(value).toLowerCase());
-}
-
-function parseBooleanDefault(value, defaultValue) {
-  return trim(value) ? parseBoolean(value) : defaultValue;
 }
 
 function resolveConfiguredPath(value, cwd) {

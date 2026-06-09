@@ -1,4 +1,10 @@
+import OSLog
 import SwiftUI
+
+private let contentViewLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CmdCmd",
+    category: "ContentView"
+)
 
 enum AppTab: String, CaseIterable, Identifiable, Hashable {
     case capture
@@ -39,7 +45,7 @@ struct ContentView: View {
             selectedContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            AppNavigationMenu(selection: $selectedTab, settingsNeedsAttention: !store.hasEndpoint)
+            AppNavigationMenu(selection: $selectedTab)
                 .padding(.top, 18)
                 .padding(.trailing, 22)
         }
@@ -76,8 +82,14 @@ struct ContentView: View {
             }
         case .settings:
             NavigationStack {
-                SettingsView(store: store)
+                SettingsView(store: store, onFinished: openCapture)
             }
+        }
+    }
+
+    private func openCapture() {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+            selectedTab = .capture
         }
     }
 
@@ -89,14 +101,16 @@ struct ContentView: View {
 
     private func applyPairing(from url: URL) {
         guard let pairing = PairingLink.parse(url) else {
+            contentViewLogger.error("pairing link rejected host=\(url.host() ?? "none", privacy: .public)")
             openSettings()
             return
         }
 
+        contentViewLogger.info(
+            "pairing link accepted endpointHost=\(URL(string: pairing.endpoint)?.host() ?? "invalid", privacy: .public) tokenSuffix=\(String(pairing.token.suffix(6)), privacy: .public)"
+        )
         store.applyPairing(endpoint: pairing.endpoint, apiToken: pairing.token)
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
-            selectedTab = .capture
-        }
+        openCapture()
     }
 }
 

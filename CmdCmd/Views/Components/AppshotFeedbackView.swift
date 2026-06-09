@@ -15,7 +15,7 @@ enum AppshotSendFeedbackPhase: Equatable {
         case .sending:
             "Sending to Codex"
         case .sent:
-            "AppShot sent to Codex"
+            "Screenshot sent to Codex"
         case .failed:
             "Could not send"
         }
@@ -160,7 +160,7 @@ struct AppshotCaptureFeedbackView: View {
     var settingsActionTitle = "Open Settings"
 
     var body: some View {
-        statusPanel
+        feedbackContent
             .frame(maxWidth: phase == .failed ? .infinity : 330, alignment: .center)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: overlayAlignment)
             .padding(.bottom, phase == .failed ? 20 : 0)
@@ -172,7 +172,52 @@ struct AppshotCaptureFeedbackView: View {
             .accessibilityLabel(accessibilityLabel)
     }
 
+    private var feedbackContent: some View {
+        VStack(spacing: phase == .failed ? 14 : 16) {
+            imagePreview
+            statusPanel
+        }
+    }
+
+    @ViewBuilder
+    private var imagePreview: some View {
+        if let imageData, let image = UIImage(data: imageData) {
+            GeometryReader { proxy in
+                let size = previewSize(for: image, in: proxy.size)
+
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size.width, height: size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .strokeBorder(.white.opacity(0.36), lineWidth: 1)
+                    }
+                    .shadow(color: .black.opacity(0.16), radius: 22, x: 0, y: 14)
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
+            }
+            .frame(height: phase == .failed ? 430 : 460)
+            .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
     private var statusPanel: some View {
+        if phase == .failed {
+            failureStatusPanel
+        } else {
+            workingStatusPanel
+        }
+    }
+
+    private var workingStatusPanel: some View {
+        CommandDeliveryStatusView(phase: phase)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity)
+    }
+
+    private var failureStatusPanel: some View {
         VStack(alignment: .leading, spacing: phase == .failed ? 8 : 0) {
             HStack(alignment: .center, spacing: 10) {
                 statusIcon
@@ -220,6 +265,10 @@ struct AppshotCaptureFeedbackView: View {
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
+    private func previewSize(for image: UIImage, in containerSize: CGSize) -> CGSize {
+        containerSize.aspectFitting(imageSize: image.size)
+    }
+
     @ViewBuilder
     private var statusIcon: some View {
         if phase.isWorking {
@@ -242,7 +291,7 @@ struct AppshotCaptureFeedbackView: View {
             return nil
         }
 
-        for prefix in ["Codex Desktop attach failed: ", "Could not send AppShot: "] {
+        for prefix in ["Codex Desktop attach failed: ", "Could not send screenshot: "] {
             if cleaned.range(of: prefix, options: [.caseInsensitive, .anchored]) != nil {
                 cleaned.removeFirst(prefix.count)
                 break
@@ -273,11 +322,160 @@ struct AppshotCaptureFeedbackView: View {
 
 }
 
+private struct CommandDeliveryStatusView: View {
+    var phase: AppshotSendFeedbackPhase
+
+    @State private var isRotating = false
+    @State private var isCollapsed = false
+    @State private var isShowingCheckmark = false
+
+    var body: some View {
+        VStack(spacing: 7) {
+            ZStack {
+                commandSymbol(side: .left)
+                plusSymbol
+                commandSymbol(side: .right)
+                checkmark
+            }
+            .frame(width: 124, height: 42)
+
+            Text(subtitle)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .frame(maxWidth: .infinity)
+        .onAppear {
+            applyPhase(animated: false)
+        }
+        .onChange(of: phase) { _, _ in
+            applyPhase(animated: true)
+        }
+    }
+
+    @ViewBuilder
+    private func commandSymbol(side: CommandSide) -> some View {
+        Image(systemName: "command")
+            .font(.system(size: 25, weight: .bold, design: .rounded))
+            .foregroundStyle(phase == .sent ? .green : phase.accent)
+            .frame(width: 30, height: 30)
+            .rotationEffect(.degrees(isRotating ? side.rotationDegrees : 0))
+            .offset(x: isCollapsed ? 0 : side.offset)
+            .scaleEffect(isCollapsed ? 0.72 : 1)
+            .opacity(isShowingCheckmark ? 0 : 1)
+            .animation(
+                isRotating ? .linear(duration: 3.4).repeatForever(autoreverses: false) : .easeOut(duration: 0.18),
+                value: isRotating
+            )
+            .animation(.spring(response: 0.48, dampingFraction: 0.82), value: isCollapsed)
+            .animation(.easeOut(duration: 0.16), value: isShowingCheckmark)
+    }
+
+    private var plusSymbol: some View {
+        Text("+")
+            .font(.system(size: 19, weight: .bold, design: .rounded))
+            .foregroundStyle(phase == .sent ? .green : phase.accent)
+            .frame(width: 24, height: 30)
+            .scaleEffect(isCollapsed ? 0.72 : 1)
+            .opacity(isShowingCheckmark ? 0 : 1)
+            .animation(.spring(response: 0.48, dampingFraction: 0.82), value: isCollapsed)
+            .animation(.easeOut(duration: 0.16), value: isShowingCheckmark)
+    }
+
+    private var checkmark: some View {
+        Image(systemName: "checkmark")
+            .font(.system(size: 21, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
+            .frame(width: 42, height: 42)
+            .background(.green, in: Circle())
+            .scaleEffect(isShowingCheckmark ? 1 : 0.64)
+            .opacity(isShowingCheckmark ? 1 : 0)
+            .animation(.spring(response: 0.36, dampingFraction: 0.72), value: isShowingCheckmark)
+    }
+
+    private var subtitle: String {
+        // Mirrors phase.title, but uses shorter copy for .sent so it fits one line.
+        phase == .sent ? "Sent to Codex" : phase.title
+    }
+
+    private func applyPhase(animated: Bool) {
+        switch phase {
+        case .preparing, .sending:
+            isShowingCheckmark = false
+            isCollapsed = false
+            isRotating = true
+        case .sent:
+            isRotating = false
+            let collapse = {
+                isCollapsed = true
+            }
+
+            if animated {
+                withAnimation(.spring(response: 0.48, dampingFraction: 0.82), collapse)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.72)) {
+                        isShowingCheckmark = true
+                    }
+                }
+            } else {
+                collapse()
+                isShowingCheckmark = true
+            }
+        case .failed:
+            isRotating = false
+            isCollapsed = false
+            isShowingCheckmark = false
+        }
+    }
+
+    private enum CommandSide {
+        case left
+        case right
+
+        var offset: CGFloat {
+            switch self {
+            case .left:
+                -42
+            case .right:
+                42
+            }
+        }
+
+        var rotationDegrees: Double {
+            switch self {
+            case .left:
+                360
+            case .right:
+                -360
+            }
+        }
+    }
+}
+
+extension CGSize {
+    /// Largest size preserving `imageSize`'s aspect ratio that fits within this size.
+    func aspectFitting(imageSize: CGSize) -> CGSize {
+        let availableWidth = max(width, 1)
+        let availableHeight = max(height, 1)
+        let aspectRatio = max(imageSize.width, 1) / max(imageSize.height, 1)
+
+        var fittedWidth = availableWidth
+        var fittedHeight = fittedWidth / aspectRatio
+        if fittedHeight > availableHeight {
+            fittedHeight = availableHeight
+            fittedWidth = fittedHeight * aspectRatio
+        }
+
+        return CGSize(width: fittedWidth, height: fittedHeight)
+    }
+}
+
 #Preview {
     ZStack {
         AppBackground()
         AppshotCaptureFeedbackView(
-            phase: .failed,
+            phase: .sending,
             imageData: nil,
             message: "Relay rejected the capture with HTTP 401: {\"error\":\"unauthorized.\"}",
             openSettings: {}

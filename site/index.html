@@ -6,7 +6,7 @@
     <title>cmd+cmd — AppShots extended to your iPhone</title>
     <meta
       name="description"
-      content="Run the Mac installer, scan its terminal QR in cmd+cmd on iPhone, and send screenshots to Codex Desktop."
+      content="Send iPhone screenshots to Codex Desktop through your paired Mac."
     />
     <meta name="theme-color" content="#050505" />
     <link rel="icon" href="./assets/icon.png" />
@@ -89,7 +89,8 @@ OUT_LOG=&quot;$LOG_DIR/cmdcmd-relay.log&quot;
 ERR_LOG=&quot;$LOG_DIR/cmdcmd-relay.err.log&quot;
 RELAY_HEALTH_URL=&quot;http://127.0.0.1:8787/healthz&quot;
 RELEASE_BASE_URL=&quot;${CMDCMD_RELAY_RELEASE_URL:-https://cmd.avmil.xyz/dl}&quot;
-ARCHIVE_NAME=&quot;${CMDCMD_RELAY_ARCHIVE_NAME:-CmdCmdRelay-macOS-20260605-2.zip}&quot;
+ARCHIVE_NAME=&quot;${CMDCMD_RELAY_ARCHIVE_NAME:-CmdCmdRelay-macOS-20260605-6.zip}&quot;
+REVIEW_MODE=&quot;0&quot;
 SCRIPT_SOURCE=&quot;${BASH_SOURCE[0]:-}&quot;
 if [[ -n &quot;$SCRIPT_SOURCE&quot; &amp;&amp; &quot;$SCRIPT_SOURCE&quot; != bash ]]; then
   ROOT_DIR=&quot;$(cd &quot;$(dirname &quot;$SCRIPT_SOURCE&quot;)/..&quot; &amp;&amp; pwd)&quot;
@@ -105,23 +106,37 @@ cleanup() {
 trap cleanup EXIT
 
 usage() {
-  cat &lt;&lt;&#39;USAGE&#39;
-Usage: scripts/install-macos.sh
+  cat &lt;&lt;&#x27;USAGE&#x27;
+Usage: install.sh [--review-mode]
 
 Installs the cmd+cmd Relay bundle, starts the private background relay, waits
 until it is ready, and prints a QR code for the iOS app to scan.
 
+Options:
+  --review-mode               Save screenshots to a local Review Inbox instead
+                              of sending them to Codex Desktop.
+
 Environment:
   INSTALL_DIR                 Override destination bundle directory.
   CMDCMD_RELAY_RELEASE_URL    Override release download base URL.
+  CMDCMD_RELAY_REVIEW_MODE    Set to 1 to enable review mode.
 USAGE
 }
+
+case &quot;${CMDCMD_RELAY_REVIEW_MODE:-0}&quot; in
+  1|true|TRUE|yes|YES)
+    REVIEW_MODE=&quot;1&quot;
+    ;;
+esac
 
 for arg in &quot;$@&quot;; do
   case &quot;$arg&quot; in
     -h|--help)
       usage
       exit 0
+      ;;
+    --review-mode)
+      REVIEW_MODE=&quot;1&quot;
       ;;
     *)
       echo &quot;Unknown argument: $arg&quot; &gt;&amp;2
@@ -148,8 +163,8 @@ download_archive() {
   if [[ -f &quot;$checksum&quot; ]]; then
     local expected
     local actual
-    expected=&quot;$(awk &#39;{print $1}&#39; &quot;$checksum&quot;)&quot;
-    actual=&quot;$(shasum -a 256 &quot;$archive&quot; | awk &#39;{print $1}&#39;)&quot;
+    expected=&quot;$(awk &#x27;{print $1}&#x27; &quot;$checksum&quot;)&quot;
+    actual=&quot;$(shasum -a 256 &quot;$archive&quot; | awk &#x27;{print $1}&#x27;)&quot;
     if [[ &quot;$expected&quot; != &quot;$actual&quot; ]]; then
       echo &quot;Checksum mismatch for $ARCHIVE_NAME&quot; &gt;&amp;2
       exit 1
@@ -161,11 +176,34 @@ download_archive() {
 
 stop_existing_relay() {
   local pids
+  local native_pids
+  local legacy_pids
   launchctl bootout &quot;gui/$(id -u)&quot; &quot;$LAUNCH_AGENT_PLIST&quot; &gt;/dev/null 2&gt;&amp;1 || true
-  pids=&quot;$(pgrep -f &quot;cmd\+cmd Relay\.app/Contents/MacOS/CmdCmdRelayApp&quot; || true)&quot;
+  pids=&quot;$(pgrep -f &quot;cmd\\+cmd Relay\\.app/Contents/MacOS/CmdCmdRelayApp&quot; || true)&quot;
   if [[ -n &quot;$pids&quot; ]]; then
     kill $pids &gt;/dev/null 2&gt;&amp;1 || true
   fi
+  native_pids=&quot;$(pgrep -f &quot;CmdCmdRelayApp --serve&quot; || true)&quot;
+  if [[ -n &quot;$native_pids&quot; ]]; then
+    kill $native_pids &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+  legacy_pids=&quot;$(ps ax -o pid=,command= | awk &#x27;/\/(CodexShot|CmdCmd)\/relay\/src\/index\.js/ {print $1}&#x27; || true)&quot;
+  if [[ -n &quot;$legacy_pids&quot; ]]; then
+    kill $legacy_pids &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+}
+
+wait_for_existing_relay_to_stop() {
+  for _ in {1..40}; do
+    if ! pgrep -f &quot;CmdCmdRelayApp --serve&quot; &gt;/dev/null 2&gt;&amp;1; then
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo &quot;Existing cmd+cmd Relay process did not stop.&quot; &gt;&amp;2
+  pgrep -af &quot;CmdCmdRelayApp --serve&quot; &gt;&amp;2 || true
+  exit 1
 }
 
 prepare_pairing() {
@@ -174,41 +212,17 @@ prepare_pairing() {
     exit 1
   fi
 
-  &quot;$RELAY_EXECUTABLE&quot; --prepare-pairing
+  if [[ &quot;$REVIEW_MODE&quot; == &quot;1&quot; ]]; then
+    &quot;$RELAY_EXECUTABLE&quot; --prepare-review-pairing
+  else
+    &quot;$RELAY_EXECUTABLE&quot; --prepare-pairing
+  fi
   RELAY_HEALTH_URL=&quot;$(&quot;$RELAY_EXECUTABLE&quot; --print-health-url)&quot;
 }
 
-install_launch_agent() {
-  mkdir -p &quot;$(dirname &quot;$LAUNCH_AGENT_PLIST&quot;)&quot; &quot;$LOG_DIR&quot;
-  cat &gt; &quot;$LAUNCH_AGENT_PLIST&quot; &lt;&lt;PLIST
-&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
-&lt;!DOCTYPE plist PUBLIC &quot;-//Apple//DTD PLIST 1.0//EN&quot; &quot;http://www.apple.com/DTDs/PropertyList-1.0.dtd&quot;&gt;
-&lt;plist version=&quot;1.0&quot;&gt;
-&lt;dict&gt;
-  &lt;key&gt;Label&lt;/key&gt;
-  &lt;string&gt;$LAUNCH_AGENT_LABEL&lt;/string&gt;
-  &lt;key&gt;ProgramArguments&lt;/key&gt;
-  &lt;array&gt;
-    &lt;string&gt;$RELAY_EXECUTABLE&lt;/string&gt;
-    &lt;string&gt;--serve&lt;/string&gt;
-  &lt;/array&gt;
-  &lt;key&gt;RunAtLoad&lt;/key&gt;
-  &lt;true/&gt;
-  &lt;key&gt;KeepAlive&lt;/key&gt;
-  &lt;true/&gt;
-  &lt;key&gt;ProcessType&lt;/key&gt;
-  &lt;string&gt;Background&lt;/string&gt;
-  &lt;key&gt;StandardOutPath&lt;/key&gt;
-  &lt;string&gt;$OUT_LOG&lt;/string&gt;
-  &lt;key&gt;StandardErrorPath&lt;/key&gt;
-  &lt;string&gt;$ERR_LOG&lt;/string&gt;
-&lt;/dict&gt;
-&lt;/plist&gt;
-PLIST
-
-  launchctl bootout &quot;gui/$(id -u)&quot; &quot;$LAUNCH_AGENT_PLIST&quot; &gt;/dev/null 2&gt;&amp;1 || true
-  launchctl bootstrap &quot;gui/$(id -u)&quot; &quot;$LAUNCH_AGENT_PLIST&quot;
-  launchctl kickstart -k &quot;gui/$(id -u)/$LAUNCH_AGENT_LABEL&quot; &gt;/dev/null 2&gt;&amp;1 || true
+start_background_relay() {
+  mkdir -p &quot;$LOG_DIR&quot;
+  nohup &quot;$RELAY_EXECUTABLE&quot; --serve &gt;&gt;&quot;$OUT_LOG&quot; 2&gt;&gt;&quot;$ERR_LOG&quot; &amp;
 }
 
 wait_for_relay() {
@@ -229,7 +243,46 @@ wait_for_relay() {
   exit 1
 }
 
+verify_relay_identity() {
+  local health
+  local escaped_executable
+  health=&quot;$(curl -fsS &quot;$RELAY_HEALTH_URL&quot; 2&gt;/dev/null || true)&quot;
+  escaped_executable=&quot;${RELAY_EXECUTABLE//\//\\/}&quot;
+  if [[ &quot;$health&quot; == *&quot;\&quot;executablePath\&quot;:\&quot;$RELAY_EXECUTABLE\&quot;&quot;* ]] ||
+     [[ &quot;$health&quot; == *&quot;\&quot;executablePath\&quot;:\&quot;$escaped_executable\&quot;&quot;* ]]; then
+    return 0
+  fi
+
+  echo &quot;Relay health check is not served by the installed relay.&quot; &gt;&amp;2
+  echo &quot;Expected: $RELAY_EXECUTABLE&quot; &gt;&amp;2
+  echo &quot;Health: ${health:-unreachable}&quot; &gt;&amp;2
+  exit 1
+}
+
+wait_for_relay_accessibility() {
+  if [[ &quot;$REVIEW_MODE&quot; == &quot;1&quot; ]]; then
+    return 0
+  fi
+
+  for _ in {1..60}; do
+    if curl -fsS &quot;$RELAY_HEALTH_URL&quot; 2&gt;/dev/null | grep -q &#x27;&quot;accessibility&quot;:&quot;granted&quot;&#x27;; then
+      return 0
+    fi
+    sleep 0.5
+  done
+
+  echo &quot;Accessibility is still not available to cmd+cmd Relay.&quot; &gt;&amp;2
+  echo &quot;If the row is already enabled in System Settings, remove cmd+cmd Relay with the minus button, rerun this installer, and approve it again.&quot; &gt;&amp;2
+  echo &quot;Installed relay: $APP_PATH&quot; &gt;&amp;2
+  exit 1
+}
+
 request_accessibility() {
+  if [[ &quot;$REVIEW_MODE&quot; == &quot;1&quot; ]]; then
+    echo &quot;Review mode enabled. Codex Desktop and Accessibility are not required.&quot;
+    return
+  fi
+
   if &quot;$RELAY_EXECUTABLE&quot; --accessibility-status &gt;/dev/null 2&gt;&amp;1; then
     echo &quot;Accessibility permission already granted.&quot;
     return
@@ -258,6 +311,7 @@ if [[ -z &quot;$FOUND_APP&quot; ]]; then
 fi
 
 stop_existing_relay
+wait_for_existing_relay_to_stop
 
 mkdir -p &quot;$INSTALL_DIR&quot;
 rm -rf &quot;$APP_PATH&quot;
@@ -266,21 +320,42 @@ ditto &quot;$FOUND_APP&quot; &quot;$APP_PATH&quot;
 if codesign --verify --deep --strict &quot;$APP_PATH&quot; &gt;/dev/null 2&gt;&amp;1; then
   echo &quot;Signature verified.&quot;
 else
-  echo &quot;Installed bundle is not signed or signature verification failed.&quot; &gt;&amp;2
+  echo &quot;Installed bundle signature verification failed.&quot; &gt;&amp;2
+  exit 1
 fi
 
 prepare_pairing
-install_launch_agent
-wait_for_relay
 request_accessibility
+start_background_relay
+wait_for_relay
+verify_relay_identity
+wait_for_relay_accessibility
+print_pairing_qr
 
-cat &lt;&lt;EOF
+if [[ &quot;$REVIEW_MODE&quot; == &quot;1&quot; ]]; then
+  cat &lt;&lt;EOF
 Installed: $APP_PATH
-Background service: $LAUNCH_AGENT_LABEL
+Background process: CmdCmdRelayApp
 Logs: $ERR_LOG
-EOF
 
-print_pairing_qr</pre>
+Next:
+1. Open cmd+cmd on iPhone.
+2. In Settings, tap Scan Desktop QR and scan the QR above.
+3. Send a screenshot. This Mac opens the local Review Inbox.
+EOF
+else
+  cat &lt;&lt;EOF
+Installed: $APP_PATH
+Background process: CmdCmdRelayApp
+Logs: $ERR_LOG
+
+Next:
+1. Open cmd+cmd on iPhone.
+2. In Settings, tap Scan Desktop QR and scan the QR above.
+3. Send screenshots to Codex Desktop.
+EOF
+fi
+</pre>
                     <button class="copy" data-copy-pre>Copy</button>
                   </div>
                 </details>
@@ -295,7 +370,7 @@ print_pairing_qr</pre>
             <li class="step">
               <span class="n">03</span>
               <div class="body">
-                <p>Grant macOS <b>Accessibility</b> permission once so the relay can paste AppShots into Codex Desktop.</p>
+                <p>Grant macOS <b>Accessibility</b> permission once so the relay can attach screenshots and context files to Codex Desktop.</p>
               </div>
             </li>
           </ol>
@@ -323,7 +398,7 @@ print_pairing_qr</pre>
             </li>
             <li class="step">
               <span class="n">03</span>
-              <div class="body"><p>Send from the <b>Share sheet</b>, a <b>Shortcut</b>, or <b>Back&nbsp;Tap</b>. The AppShot lands in Codex Desktop.</p></div>
+              <div class="body"><p>Send from the <b>Share sheet</b>, a <b>Shortcut</b>, or <b>Back&nbsp;Tap</b>. The screenshot lands in Codex Desktop.</p></div>
             </li>
           </ol>
 
@@ -346,6 +421,7 @@ print_pairing_qr</pre>
         <span class="tick bl" aria-hidden="true"></span>
         <span class="tick br" aria-hidden="true"></span>
         <div class="links">
+          <a href="./privacy">Privacy</a>
           <a href="https://x.com/jskoiz" target="_blank" rel="noopener">Made&nbsp;by&nbsp;@jskoiz</a>
         </div>
       </footer>

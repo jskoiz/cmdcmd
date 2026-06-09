@@ -37,20 +37,24 @@ final class ShareViewController: UIViewController {
         }
 
         var input = SharedCaptureInput()
+        var bestImage: SharedImageCandidate?
 
         for item in items {
             for provider in item.attachments ?? [] {
-                if input.imageData == nil {
-                    input.imageData = await provider.firstImageData()
-                    if input.filename.isEmpty {
-                        input.filename = provider.suggestedName.map { "\($0).png" } ?? "shared-screenshot.png"
-                    }
+                if let image = await provider.sharedImageCandidate(),
+                   bestImage == nil || image.data.count > bestImage!.data.count {
+                    bestImage = image
                 }
 
                 if input.sourceText.isEmpty {
                     input.sourceText = await provider.firstText()
                 }
             }
+        }
+
+        if let bestImage {
+            input.imageData = bestImage.data
+            input.filename = bestImage.filename
         }
 
         return input
@@ -73,15 +77,97 @@ struct SharedCaptureInput {
     var sourceText: String = ""
 }
 
+private struct SharedImageCandidate {
+    var data: Data
+    var filename: String
+}
+
 private extension NSItemProvider {
-    func firstImageData() async -> Data? {
-        let identifiers = [UTType.png.identifier, UTType.jpeg.identifier, UTType.image.identifier]
+    func sharedImageCandidate() async -> SharedImageCandidate? {
+        let identifiers = preferredImageTypeIdentifiers()
         for identifier in identifiers where hasItemConformingToTypeIdentifier(identifier) {
-            if let data = try? await loadDataRepresentation(forTypeIdentifier: identifier) {
-                return data
+            let fallbackName = filename(for: identifier)
+            if let data = try? await loadDataRepresentation(forTypeIdentifier: identifier),
+               UIImage(data: data) != nil {
+                return SharedImageCandidate(data: data, filename: fallbackName)
+            }
+
+            if let file = try? await loadFileDataRepresentation(forTypeIdentifier: identifier),
+               UIImage(data: file.data) != nil {
+                return SharedImageCandidate(data: file.data, filename: file.filename ?? fallbackName)
+            }
+
+            if let item = try? await loadItem(forTypeIdentifier: identifier),
+               let image = imageCandidate(from: item, fallbackFilename: fallbackName) {
+                return image
             }
         }
         return nil
+    }
+
+    func preferredImageTypeIdentifiers() -> [String] {
+        var identifiers = [
+            UTType.png.identifier,
+            UTType.jpeg.identifier,
+            UTType.image.identifier
+        ]
+
+        identifiers.append(
+            contentsOf: registeredTypeIdentifiers.filter { identifier in
+                guard let type = UTType(identifier) else {
+                    return false
+                }
+                return type.conforms(to: .image)
+            }
+        )
+
+        var seen = Set<String>()
+        return identifiers.filter { seen.insert($0).inserted }
+    }
+
+    func filename(for typeIdentifier: String) -> String {
+        let suggested = suggestedName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "/", with: "-")
+
+        let base = suggested?.isEmpty == false ? suggested! : "shared-screenshot"
+        let existingExtension = URL(fileURLWithPath: base).pathExtension
+        if let type = UTType(filenameExtension: existingExtension), type.conforms(to: .image) {
+            return base
+        }
+
+        let preferredExtension = UTType(typeIdentifier)?.preferredFilenameExtension ?? "png"
+        return "\(base).\(preferredExtension)"
+    }
+
+    func imageCandidate(from item: NSSecureCoding, fallbackFilename: String) -> SharedImageCandidate? {
+        if let data = item as? Data, UIImage(data: data) != nil {
+            return SharedImageCandidate(data: data, filename: fallbackFilename)
+        }
+
+        if let url = item as? URL {
+            return imageCandidate(from: url, fallbackFilename: fallbackFilename)
+        }
+
+        if let url = item as? NSURL {
+            return imageCandidate(from: url as URL, fallbackFilename: fallbackFilename)
+        }
+
+        if let image = item as? UIImage,
+           let data = image.pngData() ?? image.jpegData(compressionQuality: 0.92) {
+            return SharedImageCandidate(data: data, filename: fallbackFilename)
+        }
+
+        return nil
+    }
+
+    func imageCandidate(from url: URL, fallbackFilename: String) -> SharedImageCandidate? {
+        guard let data = try? Data(contentsOf: url), UIImage(data: data) != nil else {
+            return nil
+        }
+
+        let filename = url.lastPathComponent.isEmpty ? fallbackFilename : url.lastPathComponent
+        return SharedImageCandidate(data: data, filename: filename)
     }
 
     func firstText() async -> String {
@@ -105,6 +191,26 @@ private extension NSItemProvider {
                     continuation.resume(throwing: error)
                 } else if let data {
                     continuation.resume(returning: data)
+                } else {
+                    continuation.resume(throwing: CocoaError(.fileReadUnknown))
+                }
+            }
+        }
+    }
+
+    func loadFileDataRepresentation(forTypeIdentifier typeIdentifier: String) async throws -> (data: Data, filename: String?) {
+        try await withCheckedThrowingContinuation { continuation in
+            loadFileRepresentation(forTypeIdentifier: typeIdentifier) { url, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let url {
+                    do {
+                        let data = try Data(contentsOf: url)
+                        let filename = url.lastPathComponent.isEmpty ? nil : url.lastPathComponent
+                        continuation.resume(returning: (data, filename))
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
                 } else {
                     continuation.resume(throwing: CocoaError(.fileReadUnknown))
                 }

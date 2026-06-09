@@ -157,15 +157,15 @@ enum CapturePipeline {
     }
 
     static var deliveredStatusMessage: String {
-        "AppShot sent to Codex"
+        "Screenshot sent to Codex"
     }
 
     private static func queuedMessage() -> String {
-        "AppShot queued for Codex"
+        "Screenshot queued for Codex"
     }
 
     private static func unconfirmedDeliveryMessage() -> String {
-        "AppShot reached the relay, but delivery to Codex wasn't confirmed. Check Codex Desktop, then try again."
+        "Screenshot reached the relay, but delivery to Codex wasn't confirmed. Check Codex Desktop, then try again."
     }
 
     private static func userFacingFailureMessage(for error: Error, settings: RelaySettings) -> String {
@@ -219,10 +219,6 @@ enum CapturePipeline {
             record.statusMessage = deliveryStatus.message.isEmpty ? fallbackQueuedMessage : deliveryStatus.message
         }
     }
-}
-
-private func elapsedMilliseconds(since date: Date) -> Int {
-    Int(Date().timeIntervalSince(date) * 1000)
 }
 
 private enum VisibleAppInferer {

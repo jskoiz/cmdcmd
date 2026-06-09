@@ -124,10 +124,6 @@ private enum OCRResult {
     case timedOut
 }
 
-private func elapsedMilliseconds(since date: Date) -> Int {
-    Int(Date().timeIntervalSince(date) * 1000)
-}
-
 private enum OCRTextCleaner {
     private static let maxLines = 16
     private static let maxCharacters = 1_200

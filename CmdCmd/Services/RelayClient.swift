@@ -9,6 +9,7 @@ private let relayClientLogger = Logger(
 enum RelayClientError: LocalizedError {
     case missingEndpoint
     case invalidEndpoint
+    case unauthorized
     case rejected(Int, String)
     case invalidResponse(String)
 
@@ -18,6 +19,8 @@ enum RelayClientError: LocalizedError {
             "Add a relay endpoint first."
         case .invalidEndpoint:
             "The relay endpoint is not a valid URL."
+        case .unauthorized:
+            "Relay token was rejected. Refresh the Desktop relay, scan the new QR in Settings, then try again."
         case .rejected(let code, let message):
             "Relay rejected the capture with HTTP \(code): \(message)"
         case .invalidResponse(let message):
@@ -45,8 +48,63 @@ struct RelayDeliveryStatus: Decodable {
     }
 }
 
+enum RelayReadiness: Equatable {
+    case ready
+    case failed(String)
+
+    var message: String {
+        switch self {
+        case .ready:
+            "Relay and token are ready."
+        case .failed(let message):
+            message
+        }
+    }
+
+    var failureMessage: String? {
+        if case .failed(let message) = self {
+            return message
+        }
+        return nil
+    }
+}
+
 struct RelayClient {
     var settings: RelaySettings
+
+    func checkReadiness(timeoutInterval: TimeInterval = 5) async -> RelayReadiness {
+        let trimmedEndpoint = settings.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedEndpoint.isEmpty else {
+            return .failed(RelayClientError.missingEndpoint.localizedDescription)
+        }
+
+        guard let healthURL = healthURL(for: trimmedEndpoint) else {
+            return .failed(RelayClientError.invalidEndpoint.localizedDescription)
+        }
+
+        var healthRequest = URLRequest(url: healthURL)
+        healthRequest.timeoutInterval = timeoutInterval
+        do {
+            let (_, response) = try await URLSession.shared.data(for: healthRequest)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return .failed("Relay responded without an HTTP status.")
+            }
+
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                return .failed("Relay health check returned HTTP \(httpResponse.statusCode).")
+            }
+        } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain,
+               nsError.code == NSURLErrorNotConnectedToInternet {
+                return .failed(CaptureFailurePresentation.relayReachabilityMessage(endpoint: trimmedEndpoint))
+            }
+
+            return .failed(error.localizedDescription)
+        }
+
+        return await checkAuthorization(timeoutInterval: timeoutInterval)
+    }
 
     func send(_ payload: CaptureUploadPayload) async throws -> RelaySendResult {
         let startedAt = Date()
@@ -95,6 +153,9 @@ struct RelayClient {
             relayClientLogger.error(
                 "response rejected captureId=\(payload.captureId.uuidString, privacy: .public) statusCode=\(httpResponse.statusCode, privacy: .public) message=\(message, privacy: .public)"
             )
+            if httpResponse.statusCode == 401 {
+                throw RelayClientError.unauthorized
+            }
             throw RelayClientError.rejected(httpResponse.statusCode, message)
         }
 
@@ -163,6 +224,9 @@ struct RelayClient {
             relayClientLogger.error(
                 "status request rejected captureId=\(captureId.uuidString, privacy: .public) statusCode=\(httpResponse.statusCode, privacy: .public) message=\(message, privacy: .public)"
             )
+            if httpResponse.statusCode == 401 {
+                throw RelayClientError.unauthorized
+            }
             throw RelayClientError.rejected(httpResponse.statusCode, message)
         }
 
@@ -195,6 +259,60 @@ struct RelayClient {
         return url
     }
 
+    private func healthURL(for endpoint: String) -> URL? {
+        guard var components = URLComponents(string: endpoint),
+              let scheme = components.scheme,
+              ["http", "https"].contains(scheme),
+              components.host != nil else {
+            return nil
+        }
+
+        components.path = "/healthz"
+        components.query = nil
+        components.fragment = nil
+        return components.url
+    }
+
+    private func checkAuthorization(timeoutInterval: TimeInterval) async -> RelayReadiness {
+        guard let endpoint = URLComponents(string: settings.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = endpoint.scheme,
+              ["http", "https"].contains(scheme),
+              endpoint.host != nil else {
+            return .failed(RelayClientError.invalidEndpoint.localizedDescription)
+        }
+
+        var components = endpoint
+        components.path = "/v1/captures/00000000-0000-0000-0000-000000000000/status"
+        components.query = nil
+        components.fragment = nil
+        guard let url = components.url else {
+            return .failed(RelayClientError.invalidEndpoint.localizedDescription)
+        }
+
+        var request = authorizedRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeoutInterval
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return .failed("Relay responded without an HTTP status.")
+            }
+
+            switch httpResponse.statusCode {
+            case 200, 404:
+                return .ready
+            case 401:
+                return .failed(RelayClientError.unauthorized.localizedDescription)
+            default:
+                return .failed("Relay token check returned HTTP \(httpResponse.statusCode).")
+            }
+        } catch {
+            return .failed(error.localizedDescription)
+        }
+    }
+
     private func authorizedRequest(url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.setValue("cmd+cmd/1", forHTTPHeaderField: "User-Agent")
@@ -203,11 +321,10 @@ struct RelayClient {
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
+        relayClientLogger.info(
+            "authorized request prepared host=\(url.host() ?? "none", privacy: .public) tokenSuffix=\(tokenSuffix(token), privacy: .public)"
+        )
 
         return request
     }
-}
-
-private func elapsedMilliseconds(since date: Date) -> Int {
-    Int(Date().timeIntervalSince(date) * 1000)
 }
