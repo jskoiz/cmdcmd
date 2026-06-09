@@ -45,7 +45,7 @@ struct ContentView: View {
             selectedContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            AppNavigationMenu(selection: $selectedTab, settingsNeedsAttention: !store.hasEndpoint)
+            AppNavigationMenu(selection: $selectedTab)
                 .padding(.top, 18)
                 .padding(.trailing, 22)
         }
