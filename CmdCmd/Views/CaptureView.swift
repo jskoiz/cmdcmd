@@ -285,10 +285,10 @@ struct CaptureView: View {
 
     private var failureHelpMessage: String {
         if let feedbackMessage, !feedbackMessage.isEmpty {
-            return "\(feedbackMessage)\n\nUse Relay settings to confirm the endpoint, then tap Test Connection. If iOS later shows a Local Network toggle for cmd+cmd, turn it on."
+            return "\(feedbackMessage)\n\nCheck the endpoint in Relay settings, then tap Test Connection. If iOS shows a Local Network toggle for cmd+cmd, turn it on."
         }
 
-        return "Use Relay settings to confirm the endpoint, then tap Test Connection."
+        return "Check the endpoint in Relay settings, then tap Test Connection."
     }
 
     @MainActor

@@ -73,26 +73,19 @@ enum TerminalRelayCommand {
         let pairingURL = settings.compactPairingURL.absoluteString
 
         print("")
-        print("cmd+cmd Relay is ready")
+        print("cmd+cmd Relay is ready and keeps running in the background.")
         if settings.deliveryMode == .reviewInbox {
             print("Review inbox mode is enabled. Codex Desktop is not required.")
         }
-        print("1. Open cmd+cmd on iPhone.")
-        print("2. Go to Settings, then tap Scan Desktop QR.")
-        print("3. Scan this code to link the phone to this Mac.")
+        print("On iPhone: open cmd+cmd, go to Settings, tap Scan Desktop QR, then scan below.")
         print("")
 
         if let qr = terminalQRCode(for: pairingURL) {
             print(qr)
         } else {
             print("Pairing QR could not be rendered in this terminal.")
+            print("Pairing link: \(pairingURL)")
         }
-
-        print("")
-        print("Pairing link: \(pairingURL)")
-        print("Endpoint: \(settings.phoneEndpoint.absoluteString)")
-        print("")
-        print("The relay keeps running in the background after this Terminal closes.")
         print("")
     }
 
@@ -203,16 +196,8 @@ enum TerminalRelayCommand {
             return nil
         }
 
-        let colored = output.applyingFilter(
-            "CIFalseColor",
-            parameters: [
-                "inputColor0": CIColor(red: 0, green: 0, blue: 0),
-                "inputColor1": CIColor(red: 1, green: 1, blue: 1)
-            ]
-        )
-
         let context = CIContext()
-        guard let image = context.createCGImage(colored, from: output.extent) else {
+        guard let image = context.createCGImage(output, from: output.extent) else {
             return nil
         }
 
