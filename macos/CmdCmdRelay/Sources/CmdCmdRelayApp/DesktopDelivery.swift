@@ -71,36 +71,31 @@ enum DesktopDelivery {
         return textURL.path
     }
 
-    private static func copyImageToPasteboard(_ imagePath: String) throws {
-        guard let image = NSImage(contentsOfFile: imagePath) else {
-            throw RelayHTTPError.server("Could not load image: \(imagePath).")
+    static func attachmentPastePaths(imagePath: String, contextPath: String?) -> [String] {
+        var paths = [imagePath]
+        if let contextPath {
+            paths.append(contextPath)
         }
-
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        if pasteboard.writeObjects([image]) {
-            return
-        }
-
-        guard let tiff = image.tiffRepresentation else {
-            throw RelayHTTPError.server("Could not encode image for pasteboard.")
-        }
-        pasteboard.setData(tiff, forType: .tiff)
+        return paths
     }
 
-    private static func copyFileToPasteboard(_ path: String) throws {
-        let url = URL(fileURLWithPath: path)
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw RelayHTTPError.server("Could not find context attachment: \(path).")
+    static func pasteboardFileURLs(for paths: [String]) throws -> [NSURL] {
+        try paths.map { path in
+            let url = URL(fileURLWithPath: path)
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                throw RelayHTTPError.server("Could not find attachment: \(path).")
+            }
+            return url as NSURL
         }
+    }
 
+    private static func copyFilesToPasteboard(_ paths: [String]) throws {
+        let urls = try pasteboardFileURLs(for: paths)
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        if pasteboard.writeObjects([url as NSURL]) {
-            return
+        guard pasteboard.writeObjects(urls) else {
+            throw RelayHTTPError.server("Could not copy attachments to the pasteboard.")
         }
-
-        pasteboard.setString(url.absoluteString, forType: .fileURL)
     }
 
     private static func pasteAttachmentsIntoCodex(
@@ -121,14 +116,8 @@ enum DesktopDelivery {
         try postClick(source, point: clickPoint)
         usleep(150_000)
 
-        try copyImageToPasteboard(imagePath)
+        try copyFilesToPasteboard(attachmentPastePaths(imagePath: imagePath, contextPath: contextPath))
         try postPaste(source)
-
-        if let contextPath {
-            usleep(300_000)
-            try copyFileToPasteboard(contextPath)
-            try postPaste(source)
-        }
     }
 
     private static func focusedWindowFrame(for app: NSRunningApplication) throws -> CGRect {

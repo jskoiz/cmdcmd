@@ -14,6 +14,11 @@ let package = Package(
         .executableTarget(
             name: "CmdCmdRelayApp",
             path: "Sources/CmdCmdRelayApp"
+        ),
+        .testTarget(
+            name: "CmdCmdRelayAppTests",
+            dependencies: ["CmdCmdRelayApp"],
+            path: "Tests/CmdCmdRelayAppTests"
         )
     ]
 )

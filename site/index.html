@@ -222,7 +222,7 @@ prepare_pairing() {
 
 start_background_relay() {
   mkdir -p &quot;$LOG_DIR&quot;
-  nohup &quot;$RELAY_EXECUTABLE&quot; --serve &gt;&gt;&quot;$OUT_LOG&quot; 2&gt;&gt;&quot;$ERR_LOG&quot; &amp;
+  &quot;$RELAY_EXECUTABLE&quot; --serve-detached &gt;&gt;&quot;$OUT_LOG&quot; 2&gt;&gt;&quot;$ERR_LOG&quot;
 }
 
 wait_for_relay() {

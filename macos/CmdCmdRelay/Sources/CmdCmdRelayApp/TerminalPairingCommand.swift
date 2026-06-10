@@ -43,6 +43,10 @@ enum TerminalRelayCommand {
             exitAfterAccessibilityCheck(prompt: true)
         }
 
+        if options.contains("--serve-detached") {
+            serveDetached()
+        }
+
         if options.contains("--serve") {
             serveRelay()
         }
@@ -56,6 +60,7 @@ enum TerminalRelayCommand {
 
         Usage:
           CmdCmdRelayApp --serve
+          CmdCmdRelayApp --serve-detached
           CmdCmdRelayApp --prepare-pairing
           CmdCmdRelayApp --prepare-review-pairing
           CmdCmdRelayApp --print-pairing-qr
@@ -66,6 +71,53 @@ enum TerminalRelayCommand {
         The installer starts the relay in the background and prints the iPhone
         pairing QR in Terminal. There is no Dock, menu bar, or dashboard UI.
         """)
+    }
+
+    private static func serveDetached() -> Never {
+        guard let executablePath = Bundle.main.executablePath ?? CommandLine.arguments.first else {
+            fputs("cmd+cmd relay failed: could not resolve executable path.\n", stderr)
+            Foundation.exit(1)
+        }
+
+        var attributes: posix_spawnattr_t?
+        var result = posix_spawnattr_init(&attributes)
+        guard result == 0 else {
+            fputs("cmd+cmd relay failed to initialize detached launch: \(String(cString: strerror(result)))\n", stderr)
+            Foundation.exit(1)
+        }
+        defer {
+            posix_spawnattr_destroy(&attributes)
+        }
+
+        result = posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID))
+        guard result == 0 else {
+            fputs("cmd+cmd relay failed to configure detached launch: \(String(cString: strerror(result)))\n", stderr)
+            Foundation.exit(1)
+        }
+
+        var arguments = [
+            strdup(executablePath),
+            strdup("--serve"),
+            nil
+        ]
+        defer {
+            for case let argument? in arguments {
+                free(argument)
+            }
+        }
+
+        var pid = pid_t()
+        result = executablePath.withCString { path in
+            arguments.withUnsafeMutableBufferPointer { buffer in
+                posix_spawn(&pid, path, nil, &attributes, buffer.baseAddress, environ)
+            }
+        }
+        guard result == 0 else {
+            fputs("cmd+cmd relay failed to launch detached service: \(String(cString: strerror(result)))\n", stderr)
+            Foundation.exit(1)
+        }
+
+        Foundation.exit(0)
     }
 
     private static func printPairingQRCode() {

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-export const DESKTOP_HELPER_VERSION = "2026-06-05.7";
+export const DESKTOP_HELPER_VERSION = "2026-06-10.1";
 
 export async function ensureDesktopHelper(options = {}) {
   const cacheDir =
@@ -49,7 +49,7 @@ async function helperIsCurrent(helperPath, versionPath) {
   }
 }
 
-const DESKTOP_HELPER_SOURCE = String.raw`import AppKit
+export const DESKTOP_HELPER_SOURCE = String.raw`import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -152,35 +152,34 @@ func launchOrActivate(bundleID: String) -> NSRunningApplication? {
     return box.app ?? runningApp(bundleID: bundleID)
 }
 
-func copyImageToPasteboard(_ imagePath: String) {
-    guard let image = NSImage(contentsOfFile: imagePath) else {
-        fail("could not load image: \(imagePath)", code: 66)
+func attachmentPastePaths(config: Config) -> [String] {
+    guard let imagePath = config.imagePath else {
+        fail("--image-path is required", code: 64)
     }
 
-    let pasteboard = NSPasteboard.general
-    pasteboard.clearContents()
-    if pasteboard.writeObjects([image]) {
-        return
+    var paths = [imagePath]
+    if let contextPath = config.contextPath {
+        paths.append(contextPath)
     }
-
-    guard let tiff = image.tiffRepresentation else {
-        fail("could not encode image for pasteboard", code: 70)
-    }
-    pasteboard.setData(tiff, forType: .tiff)
+    return paths
 }
 
-func copyFileToPasteboard(_ filePath: String) {
-    let url = URL(fileURLWithPath: filePath)
-    guard FileManager.default.fileExists(atPath: url.path) else {
-        fail("could not find context attachment: \(filePath)", code: 66)
+func pasteboardFileURLs(for paths: [String]) -> [NSURL] {
+    paths.map { path in
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            fail("could not find attachment: \(path)", code: 66)
+        }
+        return url as NSURL
     }
+}
 
+func copyFilesToPasteboard(_ paths: [String]) {
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
-    if pasteboard.writeObjects([url as NSURL]) {
-        return
+    guard pasteboard.writeObjects(pasteboardFileURLs(for: paths)) else {
+        fail("could not copy attachments to the pasteboard", code: 70)
     }
-    pasteboard.setString(url.absoluteString, forType: .fileURL)
 }
 
 func focusedWindowFrame(for app: NSRunningApplication) -> CGRect {
@@ -279,14 +278,8 @@ func pasteIntoCodex(app: NSRunningApplication, config: Config) {
     postClick(source, point: clickPoint)
     usleep(150_000)
 
-    copyImageToPasteboard(imagePath)
+    copyFilesToPasteboard(attachmentPastePaths(config: config))
     postPaste(source)
-
-    if let contextPath = config.contextPath {
-        usleep(300_000)
-        copyFileToPasteboard(contextPath)
-        postPaste(source)
-    }
 }
 
 let config = parseArgs()

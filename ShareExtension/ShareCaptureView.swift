@@ -43,7 +43,8 @@ struct ShareCaptureView: View {
     private var statusPanel: some View {
         AppshotCaptureFeedbackView(
             phase: phase.feedbackPhase,
-            imageData: input.imageData,
+            imageData: input.previewImageData,
+            imageCount: input.images.count,
             message: phase.feedbackMessage,
             openSettings: openSettingsForCurrentFailure,
             settingsActionTitle: CaptureFailurePresentation.settingsActionTitle(for: phase.feedbackMessage)
@@ -78,7 +79,7 @@ struct ShareCaptureView: View {
     }
 
     private func send(_ input: SharedCaptureInput) async {
-        guard let data = input.imageData else {
+        guard !input.images.isEmpty else {
             phase = .failed("No image was shared.")
             AppshotFeedback.shared.playCompletion(success: false)
             return
@@ -98,33 +99,63 @@ struct ShareCaptureView: View {
             return
         }
 
-        phase = .sending
-        let record = await CapturePipeline.submit(
-            imageData: data,
-            filename: input.filename.isEmpty ? "shared-screenshot.png" : input.filename,
-            note: input.sourceText,
-            source: .shareExtension,
-            sourceDetail: "Share Sheet"
-        )
+        var sentCount = 0
+        let total = input.images.count
+        for imageIndex in input.images.indices {
+            let ordinal = imageIndex + 1
+            phase = .sending(current: ordinal, total: total)
+            let record = await CapturePipeline.submit(
+                imageData: input.images[imageIndex].data,
+                filename: filename(for: input.images[imageIndex], index: imageIndex, total: total),
+                note: input.sourceText,
+                source: .shareExtension,
+                sourceDetail: sourceDetail(index: imageIndex, total: total)
+            )
 
-        if record.status == .sent {
-            phase = .sent(record.statusMessage)
-            AppshotFeedback.shared.playCompletion(success: true)
-        } else {
-            phase = .failed(record.statusMessage)
-            AppshotFeedback.shared.playCompletion(success: false)
+            guard record.status == .sent else {
+                phase = .failed(failureMessage(for: record, sentCount: sentCount, total: total))
+                AppshotFeedback.shared.playCompletion(success: false)
+                return
+            }
+            sentCount += 1
         }
+
+        phase = .sent(total)
+        AppshotFeedback.shared.playCompletion(success: true)
         #endif
     }
 
     #if targetEnvironment(simulator)
     private func simulateSimulatorSend() async {
-        phase = .sending
-        try? await Task.sleep(nanoseconds: 1_300_000_000)
-        phase = .sent("Simulated send complete.")
+        let total = max(input.images.count, 1)
+        for ordinal in 1...total {
+            phase = .sending(current: ordinal, total: total)
+            try? await Task.sleep(nanoseconds: 450_000_000)
+        }
+        phase = .sent(total)
         AppshotFeedback.shared.playCompletion(success: true)
     }
     #endif
+
+    private func filename(for image: SharedCaptureImage, index: Int, total: Int) -> String {
+        let filename = image.filename.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !filename.isEmpty {
+            return filename
+        }
+        return total > 1 ? "shared-screenshot-\(index + 1).png" : "shared-screenshot.png"
+    }
+
+    private func sourceDetail(index: Int, total: Int) -> String {
+        total > 1 ? "Share Sheet \(index + 1) of \(total)" : "Share Sheet"
+    }
+
+    private func failureMessage(for record: CaptureRecord, sentCount: Int, total: Int) -> String {
+        guard total > 1 else {
+            return record.statusMessage
+        }
+
+        return "Sent \(sentCount) of \(total). \(record.statusMessage)"
+    }
 
     private func openSettingsForCurrentFailure() {
         switch CaptureFailurePresentation.settingsDestination(for: phase.feedbackMessage) {
@@ -197,8 +228,8 @@ private struct ShareActionButton: View {
 
 private enum ShareSendPhase: Equatable {
     case loading
-    case sending
-    case sent(String)
+    case sending(current: Int, total: Int)
+    case sent(Int)
     case failed(String)
 
     var feedbackPhase: AppshotSendFeedbackPhase {

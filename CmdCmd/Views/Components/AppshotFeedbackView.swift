@@ -61,12 +61,14 @@ final class AppshotFeedback {
     private init() {}
 
     func prepare() {
+        prepareAudioSession()
         impact.prepare()
         notification.prepare()
         preparePlayer()
     }
 
     func playCaptureStart() {
+        prepareAudioSession()
         preparePlayer()
         player?.currentTime = 0
         player?.play()
@@ -77,6 +79,16 @@ final class AppshotFeedback {
     func playCompletion(success: Bool) {
         notification.notificationOccurred(success ? .success : .error)
         notification.prepare()
+    }
+
+    private func prepareAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+        } catch {
+            // Haptics should still fire if the extension host refuses audio activation.
+        }
     }
 
     private func preparePlayer() {
@@ -155,6 +167,7 @@ final class AppshotFeedback {
 struct AppshotCaptureFeedbackView: View {
     var phase: AppshotSendFeedbackPhase
     var imageData: Data?
+    var imageCount = 1
     var message: String?
     var openSettings: (() -> Void)?
     var settingsActionTitle = "Open Settings"
@@ -194,11 +207,32 @@ struct AppshotCaptureFeedbackView: View {
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
                             .strokeBorder(.white.opacity(0.36), lineWidth: 1)
                     }
+                    .overlay(alignment: .topTrailing) {
+                        imageCountBadge
+                            .padding(12)
+                    }
                     .shadow(color: .black.opacity(0.16), radius: 22, x: 0, y: 14)
                     .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
             }
             .frame(height: phase == .failed ? 430 : 460)
             .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private var imageCountBadge: some View {
+        if imageCount > 1 {
+            HStack(spacing: 5) {
+                Image(systemName: "photo.stack")
+                    .font(.caption2.weight(.bold))
+                Text("\(imageCount)")
+                    .font(.caption.weight(.bold))
+                    .monospacedDigit()
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(.black.opacity(0.58), in: Capsule())
         }
     }
 

@@ -9,6 +9,7 @@ import {
   buildDesktopHelperArgs,
   DesktopAttachmentClient
 } from "../src/desktop-attachment-client.js";
+import { DESKTOP_HELPER_SOURCE } from "../src/desktop-helper.js";
 import { createDeliveryStatusStore } from "../src/delivery-status.js";
 import { deliverPayload } from "../src/relay.js";
 import { createServer } from "../src/server.js";
@@ -255,6 +256,15 @@ test("DesktopAttachmentClient triggers without Preview by default", async () => 
   assert.equal(commands[0].args.includes("--close-viewer"), false);
   assert.equal(commands[0].args.includes("--text-path"), false);
   assert.equal(commands[0].args.includes("--window-title"), false);
+});
+
+test("desktop helper pastes screenshot and context as file attachments", () => {
+  assert.match(
+    DESKTOP_HELPER_SOURCE,
+    /copyFilesToPasteboard\(attachmentPastePaths\(config: config\)\)/
+  );
+  assert.doesNotMatch(DESKTOP_HELPER_SOURCE, /NSImage\(contentsOfFile/);
+  assert.doesNotMatch(DESKTOP_HELPER_SOURCE, /setString\(url\.absoluteString/);
 });
 
 test("buildDesktopHelperArgs configures screenshot and text attachment paste", () => {

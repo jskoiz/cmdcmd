@@ -37,24 +37,17 @@ final class ShareViewController: UIViewController {
         }
 
         var input = SharedCaptureInput()
-        var bestImage: SharedImageCandidate?
 
         for item in items {
             for provider in item.attachments ?? [] {
-                if let image = await provider.sharedImageCandidate(),
-                   bestImage == nil || image.data.count > bestImage!.data.count {
-                    bestImage = image
+                if let image = await provider.sharedImageCandidate() {
+                    input.images.append(image)
                 }
 
                 if input.sourceText.isEmpty {
                     input.sourceText = await provider.firstText()
                 }
             }
-        }
-
-        if let bestImage {
-            input.imageData = bestImage.data
-            input.filename = bestImage.filename
         }
 
         return input
@@ -72,29 +65,32 @@ final class ShareViewController: UIViewController {
 }
 
 struct SharedCaptureInput {
-    var imageData: Data?
-    var filename: String = ""
+    var images: [SharedCaptureImage] = []
     var sourceText: String = ""
+
+    var previewImageData: Data? {
+        images.first?.data
+    }
 }
 
-private struct SharedImageCandidate {
+struct SharedCaptureImage: Equatable {
     var data: Data
     var filename: String
 }
 
 private extension NSItemProvider {
-    func sharedImageCandidate() async -> SharedImageCandidate? {
+    func sharedImageCandidate() async -> SharedCaptureImage? {
         let identifiers = preferredImageTypeIdentifiers()
         for identifier in identifiers where hasItemConformingToTypeIdentifier(identifier) {
             let fallbackName = filename(for: identifier)
             if let data = try? await loadDataRepresentation(forTypeIdentifier: identifier),
                UIImage(data: data) != nil {
-                return SharedImageCandidate(data: data, filename: fallbackName)
+                return SharedCaptureImage(data: data, filename: fallbackName)
             }
 
             if let file = try? await loadFileDataRepresentation(forTypeIdentifier: identifier),
                UIImage(data: file.data) != nil {
-                return SharedImageCandidate(data: file.data, filename: file.filename ?? fallbackName)
+                return SharedCaptureImage(data: file.data, filename: file.filename ?? fallbackName)
             }
 
             if let item = try? await loadItem(forTypeIdentifier: identifier),
@@ -140,9 +136,9 @@ private extension NSItemProvider {
         return "\(base).\(preferredExtension)"
     }
 
-    func imageCandidate(from item: NSSecureCoding, fallbackFilename: String) -> SharedImageCandidate? {
+    func imageCandidate(from item: NSSecureCoding, fallbackFilename: String) -> SharedCaptureImage? {
         if let data = item as? Data, UIImage(data: data) != nil {
-            return SharedImageCandidate(data: data, filename: fallbackFilename)
+            return SharedCaptureImage(data: data, filename: fallbackFilename)
         }
 
         if let url = item as? URL {
@@ -155,19 +151,19 @@ private extension NSItemProvider {
 
         if let image = item as? UIImage,
            let data = image.pngData() ?? image.jpegData(compressionQuality: 0.92) {
-            return SharedImageCandidate(data: data, filename: fallbackFilename)
+            return SharedCaptureImage(data: data, filename: fallbackFilename)
         }
 
         return nil
     }
 
-    func imageCandidate(from url: URL, fallbackFilename: String) -> SharedImageCandidate? {
+    func imageCandidate(from url: URL, fallbackFilename: String) -> SharedCaptureImage? {
         guard let data = try? Data(contentsOf: url), UIImage(data: data) != nil else {
             return nil
         }
 
         let filename = url.lastPathComponent.isEmpty ? fallbackFilename : url.lastPathComponent
-        return SharedImageCandidate(data: data, filename: filename)
+        return SharedCaptureImage(data: data, filename: filename)
     }
 
     func firstText() async -> String {

@@ -145,7 +145,7 @@ prepare_pairing() {
 
 start_background_relay() {
   mkdir -p "$LOG_DIR"
-  nohup "$RELAY_EXECUTABLE" --serve >>"$OUT_LOG" 2>>"$ERR_LOG" &
+  "$RELAY_EXECUTABLE" --serve-detached >>"$OUT_LOG" 2>>"$ERR_LOG"
 }
 
 wait_for_relay() {
