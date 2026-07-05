@@ -3,6 +3,7 @@ import UIKit
 
 struct HistoryView: View {
     @Bindable var store: CaptureStore
+    @State private var isConfirmingClear = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -24,6 +25,17 @@ struct HistoryView: View {
         .background { AppBackground() }
         .toolbar(.hidden, for: .navigationBar)
         .onAppear { store.reload() }
+        .confirmationDialog(
+            "Clear all captures?",
+            isPresented: $isConfirmingClear,
+            titleVisibility: .visible
+        ) {
+            Button("Clear History", role: .destructive) {
+                store.clearHistory()
+            }
+        } message: {
+            Text("This removes the capture history on this iPhone. Screenshots already sent to Codex are not affected.")
+        }
     }
 
     private var header: some View {
@@ -39,7 +51,7 @@ struct HistoryView: View {
             Spacer()
 
             GlassIconButton(systemName: "trash", tint: store.records.isEmpty ? .secondary : .red) {
-                store.clearHistory()
+                isConfirmingClear = true
             }
             .disabled(store.records.isEmpty)
             .accessibilityLabel("Clear history")

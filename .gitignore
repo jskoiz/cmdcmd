@@ -10,3 +10,4 @@ macos/CmdCmdRelay/.build/
 node_modules/
 relay/.env
 relay/inbox/
+.asc/

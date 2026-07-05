@@ -168,7 +168,8 @@ private extension NSItemProvider {
 
     func firstText() async -> String {
         if hasItemConformingToTypeIdentifier(UTType.url.identifier),
-           let url = try? await loadItem(forTypeIdentifier: UTType.url.identifier) as? URL {
+           let url = try? await loadItem(forTypeIdentifier: UTType.url.identifier) as? URL,
+           !url.isFileURL {
             return url.absoluteString
         }
 

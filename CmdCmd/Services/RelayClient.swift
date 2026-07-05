@@ -175,7 +175,9 @@ struct RelayClient {
 
     func waitForDeliveryStatus(
         after sendResult: RelaySendResult,
-        timeoutSeconds: TimeInterval = 60,
+        // Must cover the relay's worst legitimate path: helper compilation
+        // (up to 30s) plus the paste step (10s), with a little headroom.
+        timeoutSeconds: TimeInterval = 45,
         pollIntervalNanoseconds: UInt64 = 1_000_000_000
     ) async throws -> RelayDeliveryStatus? {
         guard let statusURL = URL(string: sendResult.statusUrl, relativeTo: try endpointURL(for: sendResult.captureId))?.absoluteURL else {
