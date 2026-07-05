@@ -74,8 +74,30 @@ struct ShareCaptureView: View {
 
         didStart = true
         phase = .loading
-        input = await loadInput()
+        guard let loadedInput = await loadInputWithTimeout() else {
+            phase = .failed("Couldn't load the shared image. Close and try sharing again.")
+            AppshotFeedback.shared.playCompletion(success: false)
+            return
+        }
+
+        input = loadedInput
         await send(input)
+    }
+
+    // iOS occasionally stalls when handing attachments to the extension; without a
+    // timeout the sheet would sit on "Preparing" forever.
+    private func loadInputWithTimeout(seconds: UInt64 = 10) async -> SharedCaptureInput? {
+        await withTaskGroup(of: SharedCaptureInput?.self) { group in
+            group.addTask { await loadInput() }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+                return nil
+            }
+
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
     }
 
     private func send(_ input: SharedCaptureInput) async {
@@ -114,7 +136,15 @@ struct ShareCaptureView: View {
 
         phase = .sent(total)
         AppshotFeedback.shared.playCompletion(success: true)
+        await dismissAfterSuccess()
         #endif
+    }
+
+    private func dismissAfterSuccess() async {
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        if case .sent = phase {
+            finish()
+        }
     }
 
     #if targetEnvironment(simulator)
@@ -126,6 +156,7 @@ struct ShareCaptureView: View {
         }
         phase = .sent(total)
         AppshotFeedback.shared.playCompletion(success: true)
+        await dismissAfterSuccess()
     }
     #endif
 
