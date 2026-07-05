@@ -85,24 +85,43 @@ struct ShareCaptureView: View {
     }
 
     // iOS occasionally stalls when handing attachments to the extension; without a
-    // timeout the sheet would sit on "Preparing" forever.
+    // timeout the sheet would sit on "Preparing" forever. A task group can't model
+    // this: it waits for all children, and the NSItemProvider loads don't observe
+    // cancellation. Race two tasks for a single continuation instead, abandoning
+    // the load if the deadline wins.
+    @MainActor
     private func loadInputWithTimeout(seconds: UInt64 = 10) async -> SharedCaptureInput? {
-        await withTaskGroup(of: SharedCaptureInput?.self) { group in
-            group.addTask { await loadInput() }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
-                return nil
+        final class Resumed {
+            var value = false
+        }
+
+        let resumed = Resumed()
+        return await withCheckedContinuation { continuation in
+            @MainActor func resume(with input: SharedCaptureInput?) {
+                guard !resumed.value else { return }
+                resumed.value = true
+                continuation.resume(returning: input)
             }
 
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
+            Task { resume(with: await loadInput()) }
+            Task {
+                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+                resume(with: nil)
+            }
         }
     }
 
     private func send(_ input: SharedCaptureInput) async {
         guard !input.images.isEmpty else {
             phase = .failed("No image was shared.")
+            AppshotFeedback.shared.playCompletion(success: false)
+            return
+        }
+
+        // Fail fast on a missing/invalid endpoint before the pipeline spends
+        // extension time and memory normalizing the image and running OCR.
+        if let endpointFailure = localEndpointFailureMessage() {
+            phase = .failed(endpointFailure)
             AppshotFeedback.shared.playCompletion(success: false)
             return
         }
@@ -138,6 +157,20 @@ struct ShareCaptureView: View {
         AppshotFeedback.shared.playCompletion(success: true)
         await dismissAfterSuccess()
         #endif
+    }
+
+    private func localEndpointFailureMessage() -> String? {
+        let endpoint = CaptureRepository.loadSettings().endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        if endpoint.isEmpty {
+            return RelayClientError.missingEndpoint.localizedDescription
+        }
+
+        guard let url = URL(string: endpoint), let scheme = url.scheme,
+              ["http", "https"].contains(scheme) else {
+            return RelayClientError.invalidEndpoint.localizedDescription
+        }
+
+        return nil
     }
 
     private func dismissAfterSuccess() async {
