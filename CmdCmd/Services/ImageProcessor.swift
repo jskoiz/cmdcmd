@@ -36,7 +36,7 @@ enum ImageProcessor {
         let maxDimension: CGFloat = 1800
         let scale = min(maxDimension / max(image.size.width, image.size.height), 1)
         let targetSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: pointScaleFormat)
 
         return renderer.jpegData(withCompressionQuality: 0.82) { _ in
             image.draw(in: CGRect(origin: .zero, size: targetSize))
@@ -51,10 +51,18 @@ enum ImageProcessor {
         let maxDimension: CGFloat = 420
         let scale = min(maxDimension / max(image.size.width, image.size.height), 1)
         let targetSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: pointScaleFormat)
 
         return renderer.jpegData(withCompressionQuality: 0.72) { _ in
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
+    }
+
+    // The default renderer format uses the device screen scale, which would triple
+    // the pixel dimensions on 3x devices and blow the share extension's memory limit.
+    private static var pointScaleFormat: UIGraphicsImageRendererFormat {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return format
     }
 }

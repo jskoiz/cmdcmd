@@ -91,14 +91,6 @@ struct ShareCaptureView: View {
         #if targetEnvironment(simulator)
         await simulateSimulatorSend()
         #else
-        let settings = CaptureRepository.loadSettings()
-        let readiness = await RelayClient(settings: settings).checkReadiness()
-        if let failureMessage = readiness.failureMessage {
-            phase = .failed(failureMessage)
-            AppshotFeedback.shared.playCompletion(success: false)
-            return
-        }
-
         var sentCount = 0
         let total = input.images.count
         for imageIndex in input.images.indices {

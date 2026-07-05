@@ -80,6 +80,9 @@ struct CaptureView: View {
             Spacer(minLength: 0)
 
             screenshotPanel(height: panelHeight)
+                // The feedback overlay shows its own copy of the image; hide this one
+                // so the screenshot doesn't appear twice while sending.
+                .opacity(feedbackPhase == nil ? 1 : 0)
 
             if feedbackPhase == nil, !statusText.isEmpty {
                 Label(statusText, systemImage: "sparkle")
