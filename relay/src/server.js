@@ -2,10 +2,11 @@ import http from "node:http";
 import { isAuthorized } from "./auth.js";
 import { createDeliveryStatusStore } from "./delivery-status.js";
 import { logError, logInfo } from "./logger.js";
-import { deliverPayload } from "./relay.js";
+import { createDeliveryQueue, deliverPayload } from "./relay.js";
 
 export function createServer({ config, codexClient, logger = console }) {
   const deliveryStatusStore = createDeliveryStatusStore();
+  const deliveryQueue = createDeliveryQueue();
 
   return http.createServer(async (request, response) => {
     const requestId = createRequestId();
@@ -65,6 +66,7 @@ export function createServer({ config, codexClient, logger = console }) {
         config,
         codexClient,
         deliveryStatusStore,
+        deliveryQueue,
         logger,
         requestId
       });
@@ -153,7 +155,7 @@ async function readJsonBody(request, maxBytes) {
     throw error;
   }
 
-  let body = "";
+  const chunks = [];
   let bytes = 0;
   for await (const chunk of request) {
     bytes += chunk.length;
@@ -162,11 +164,11 @@ async function readJsonBody(request, maxBytes) {
       error.statusCode = 413;
       throw error;
     }
-    body += chunk;
+    chunks.push(chunk);
   }
 
   try {
-    return { payload: JSON.parse(body), bytes };
+    return { payload: JSON.parse(Buffer.concat(chunks, bytes).toString("utf8")), bytes };
   } catch {
     const error = new Error("Request body must be valid JSON.");
     error.statusCode = 400;

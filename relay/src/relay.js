@@ -33,12 +33,13 @@ export async function deliverPayload(payload, options) {
   });
   deliveryStatusStore?.accept(capture, stored, requestId);
 
-  void deliverCaptureToDesktop(capture, stored, {
+  const delivery = () => deliverCaptureToDesktop(capture, stored, {
     codexClient: options.codexClient,
     deliveryStatusStore,
     logger,
     requestId
   });
+  void options.deliveryQueue.enqueue(delivery);
 
   return {
     status: "accepted",
@@ -46,6 +47,18 @@ export async function deliverPayload(payload, options) {
     imagePath: stored.imagePath,
     metadataPath: stored.metadataPath,
     statusUrl: `/v1/captures/${encodeURIComponent(capture.captureId)}/status`
+  };
+}
+
+export function createDeliveryQueue() {
+  let tail = Promise.resolve();
+
+  return {
+    enqueue(delivery) {
+      const result = tail.then(delivery, delivery);
+      tail = result.catch(() => {});
+      return result;
+    }
   };
 }
 

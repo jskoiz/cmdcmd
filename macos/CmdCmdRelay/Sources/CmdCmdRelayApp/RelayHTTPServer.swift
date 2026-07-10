@@ -6,8 +6,10 @@ final class RelayHTTPServer {
     private let statusStore: DeliveryStatusStore
     private let eventHandler: (RelayEvent) -> Void
     private let maxBodyBytes = 12_500_000
+    private let maxHeaderBytes = 32 * 1024
     private let acceptQueue = DispatchQueue(label: "app.cmdcmd.relay.http.accept", qos: .userInitiated)
     private let connectionQueue = DispatchQueue(label: "app.cmdcmd.relay.http.connection", qos: .userInitiated, attributes: .concurrent)
+    private let deliveryQueue = DispatchQueue(label: "app.cmdcmd.relay.delivery", qos: .userInitiated)
     private var listenSocket: Int32 = -1
     private var isStopping = false
 
@@ -83,6 +85,9 @@ final class RelayHTTPServer {
                 continue
             }
 
+            var timeout = timeval(tv_sec: 15, tv_usec: 0)
+            setsockopt(clientFD, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+
             connectionQueue.async { [weak self] in
                 self?.handleConnection(clientFD)
             }
@@ -151,7 +156,7 @@ final class RelayHTTPServer {
         statusStore.accept(captureId: capture.captureId, deliveryMode: settings.deliveryMode)
         eventHandler(.accepted(capture.captureId))
 
-        DispatchQueue.global(qos: .userInitiated).async { [statusStore, eventHandler] in
+        deliveryQueue.async { [statusStore, eventHandler] in
             statusStore.delivering(captureId: capture.captureId, deliveryMode: settings.deliveryMode)
             eventHandler(.delivering(capture.captureId))
             do {
@@ -185,12 +190,15 @@ final class RelayHTTPServer {
     private func readRequest(from clientFD: Int32) throws -> HTTPRequest {
         var data = Data()
         var buffer = [UInt8](repeating: 0, count: 16_384)
-        var expectedBodyLength: Int?
+        var requestHead: HTTPRequestHead?
         var headerEndIndex: Data.Index?
 
         while true {
             let count = Darwin.recv(clientFD, &buffer, buffer.count, 0)
             if count < 0 {
+                if errno == EINTR {
+                    continue
+                }
                 throw RelayHTTPError.badRequest("Could not read request.")
             }
             if count == 0 {
@@ -198,35 +206,47 @@ final class RelayHTTPServer {
             }
 
             data.append(buffer, count: count)
-            if data.count > maxBodyBytes + 16_384 {
-                throw RelayHTTPError.payloadTooLarge
-            }
 
             if headerEndIndex == nil, let range = data.range(of: Data([13, 10, 13, 10])) {
+                guard range.lowerBound <= maxHeaderBytes else {
+                    throw RelayHTTPError.badRequest("HTTP headers are too large.")
+                }
                 headerEndIndex = range.upperBound
                 let headerData = data[..<range.lowerBound]
                 let headerText = String(decoding: headerData, as: UTF8.self)
-                expectedBodyLength = HTTPRequest.contentLength(from: headerText)
+                requestHead = try HTTPRequest.parseHead(headerText: headerText, maxBodyBytes: maxBodyBytes)
+            } else if headerEndIndex == nil, data.count > maxHeaderBytes + 3 {
+                throw RelayHTTPError.badRequest("HTTP headers are too large.")
             }
 
-            if let headerEndIndex, let expectedBodyLength,
-               data.count >= headerEndIndex + expectedBodyLength {
-                break
+            if let headerEndIndex, let requestHead {
+                let (requestEndIndex, overflow) = headerEndIndex.addingReportingOverflow(requestHead.contentLength)
+                guard !overflow else {
+                    throw RelayHTTPError.payloadTooLarge
+                }
+                if data.count >= requestEndIndex {
+                    break
+                }
+                if data.count - headerEndIndex > maxBodyBytes {
+                    throw RelayHTTPError.payloadTooLarge
+                }
             }
         }
 
-        guard let headerEndIndex else {
+        guard let headerEndIndex, let requestHead else {
             throw RelayHTTPError.badRequest("Malformed HTTP request.")
         }
 
-        let headerData = data[..<(headerEndIndex - 4)]
-        let headerText = String(decoding: headerData, as: UTF8.self)
-        let body = data[headerEndIndex...]
-        let request = try HTTPRequest(headerText: headerText, body: Data(body.prefix(expectedBodyLength ?? 0)))
-        if request.body.count > maxBodyBytes {
-            throw RelayHTTPError.payloadTooLarge
+        let (requestEndIndex, overflow) = headerEndIndex.addingReportingOverflow(requestHead.contentLength)
+        guard !overflow, requestEndIndex <= data.count else {
+            throw RelayHTTPError.badRequest("Incomplete HTTP request body.")
         }
-        return request
+        return HTTPRequest(
+            method: requestHead.method,
+            path: requestHead.path,
+            headers: requestHead.headers,
+            body: Data(data[headerEndIndex..<requestEndIndex])
+        )
     }
 
     private func writeResponse(_ response: HTTPResponse, to clientFD: Int32) {
@@ -235,7 +255,17 @@ final class RelayHTTPServer {
             guard let baseAddress = pointer.baseAddress else {
                 return
             }
-            _ = Darwin.send(clientFD, baseAddress, data.count, 0)
+            var sent = 0
+            while sent < data.count {
+                let count = Darwin.send(clientFD, baseAddress.advanced(by: sent), data.count - sent, 0)
+                if count < 0, errno == EINTR {
+                    continue
+                }
+                guard count > 0 else {
+                    return
+                }
+                sent += count
+            }
         }
     }
 
@@ -277,15 +307,30 @@ enum RelayEvent {
     case failed(String)
 }
 
-private struct HTTPRequest {
+struct HTTPRequest {
     var method: String
     var path: String
     var headers: [String: String]
     var body: Data
 
-    init(headerText: String, body: Data) throws {
+    init(headerText: String, body: Data, maxBodyBytes: Int = 12_500_000) throws {
+        let head = try Self.parseHead(headerText: headerText, maxBodyBytes: maxBodyBytes)
+        guard body.count == head.contentLength else {
+            throw RelayHTTPError.badRequest("HTTP body length does not match Content-Length.")
+        }
+        self.init(method: head.method, path: head.path, headers: head.headers, body: body)
+    }
+
+    init(method: String, path: String, headers: [String: String], body: Data) {
+        self.method = method
+        self.path = path
+        self.headers = headers
+        self.body = body
+    }
+
+    static func parseHead(headerText: String, maxBodyBytes: Int) throws -> HTTPRequestHead {
         let lines = headerText.components(separatedBy: "\r\n")
-        guard let requestLine = lines.first else {
+        guard let requestLine = lines.first, !requestLine.isEmpty else {
             throw RelayHTTPError.badRequest("Malformed HTTP request.")
         }
 
@@ -294,34 +339,55 @@ private struct HTTPRequest {
             throw RelayHTTPError.badRequest("Malformed HTTP request line.")
         }
 
-        self.method = requestParts[0].uppercased()
-        self.path = requestParts[1]
-        self.headers = Dictionary(
-            uniqueKeysWithValues: lines.dropFirst().compactMap { line in
-                guard let separator = line.firstIndex(of: ":") else {
-                    return nil
-                }
-                let key = line[..<separator].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                let value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespacesAndNewlines)
-                return (key, value)
-            }
-        )
-        self.body = body
-    }
-
-    static func contentLength(from headerText: String) -> Int {
-        for line in headerText.components(separatedBy: "\r\n").dropFirst() {
-            guard let separator = line.firstIndex(of: ":") else {
-                continue
+        let method = requestParts[0].uppercased()
+        let path = requestParts[1]
+        var headers: [String: String] = [:]
+        for line in lines.dropFirst() {
+            guard !line.isEmpty, let separator = line.firstIndex(of: ":") else {
+                throw RelayHTTPError.badRequest("Malformed HTTP header.")
             }
             let key = line[..<separator].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            if key == "content-length" {
-                let value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespacesAndNewlines)
-                return Int(value) ?? 0
+            guard !key.isEmpty else {
+                throw RelayHTTPError.badRequest("HTTP header name must not be empty.")
             }
+            guard headers[key] == nil else {
+                throw RelayHTTPError.badRequest("Duplicate HTTP header: \(key).")
+            }
+            headers[key] = line[line.index(after: separator)...]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        return 0
+
+        guard headers["transfer-encoding"] == nil else {
+            throw RelayHTTPError.badRequest("Transfer-Encoding is not supported.")
+        }
+
+        let contentLength: Int
+        if let value = headers["content-length"] {
+            guard !value.isEmpty,
+                  value.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }),
+                  let length = Int(value) else {
+                throw RelayHTTPError.badRequest("Content-Length must be a non-negative decimal integer.")
+            }
+            guard length <= maxBodyBytes else {
+                throw RelayHTTPError.payloadTooLarge
+            }
+            contentLength = length
+        } else {
+            guard method != "POST" else {
+                throw RelayHTTPError.badRequest("Content-Length is required for POST requests.")
+            }
+            contentLength = 0
+        }
+
+        return HTTPRequestHead(method: method, path: path, headers: headers, contentLength: contentLength)
     }
+}
+
+struct HTTPRequestHead {
+    var method: String
+    var path: String
+    var headers: [String: String]
+    var contentLength: Int
 }
 
 private struct HTTPResponse {

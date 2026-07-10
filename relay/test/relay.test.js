@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -11,7 +12,7 @@ import {
 } from "../src/desktop-attachment-client.js";
 import { DESKTOP_HELPER_SOURCE } from "../src/desktop-helper.js";
 import { createDeliveryStatusStore } from "../src/delivery-status.js";
-import { deliverPayload } from "../src/relay.js";
+import { createDeliveryQueue, deliverPayload } from "../src/relay.js";
 import { createServer } from "../src/server.js";
 
 const samplePayload = {
@@ -61,6 +62,7 @@ test("deliverPayload validates, stores, and queues Codex Desktop delivery", asyn
   });
   const result = await deliverPayload(samplePayload, {
     config: { inboxDir },
+    deliveryQueue: createDeliveryQueue(),
     deliveryStatusStore: createDeliveryStatusStore(),
     codexClient: {
       async deliver(capture, stored) {
@@ -610,6 +612,142 @@ test("createServer exposes authenticated delivery status until completion", asyn
   assert.equal(deliveredBody.deliveryLane, "desktop-attachment");
 });
 
+test("createServer decodes non-ASCII JSON split across TCP chunks exactly once", async (t) => {
+  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
+  const config = loadConfig(
+    { CMDCMD_RELAY_TOKEN: "secret", CMDCMD_INBOX_DIR: inboxDir },
+    { cwd: process.cwd() }
+  );
+  const server = createServer({
+    config,
+    codexClient: {
+      async deliver() {
+        return { status: "delivered", deliveryLane: "desktop-attachment" };
+      }
+    },
+    logger: { error() {}, info() {} }
+  });
+  await listen(server);
+  t.after(() => server.close());
+
+  const context = "Review café 🌺 exactly.";
+  const body = Buffer.from(JSON.stringify({
+    ...samplePayload,
+    captureId: "66666666-6666-4666-8666-666666666666",
+    context
+  }));
+  const flower = Buffer.from("🌺");
+  const flowerIndex = body.indexOf(flower);
+  assert.notEqual(flowerIndex, -1);
+  const response = decodeRawResponse(await sendRawRequest(server.address().port, body, flowerIndex + 1));
+
+  assert.match(response.head, /^HTTP\/1\.1 202 /);
+  const responseBody = JSON.parse(response.body.toString("utf8"));
+  const metadata = JSON.parse(await fs.readFile(responseBody.metadataPath, "utf8"));
+  assert.equal(metadata.context, context);
+});
+
+test("createServer serializes desktop deliveries in capture acceptance order", async (t) => {
+  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
+  const config = loadConfig(
+    { CMDCMD_RELAY_TOKEN: "secret", CMDCMD_INBOX_DIR: inboxDir },
+    { cwd: process.cwd() }
+  );
+  const calls = [];
+  let releaseFirst;
+  const firstBlocked = new Promise((resolve) => { releaseFirst = resolve; });
+  const server = createServer({
+    config,
+    codexClient: {
+      async deliver(capture) {
+        calls.push(capture.captureId);
+        if (calls.length === 1) {
+          await firstBlocked;
+        }
+        return { status: "delivered", deliveryLane: "desktop-attachment" };
+      }
+    },
+    logger: { error() {}, info() {} }
+  });
+  await listen(server);
+  t.after(() => server.close());
+
+  const firstId = "77777777-7777-4777-8777-777777777777";
+  const secondId = "88888888-8888-4888-8888-888888888888";
+  const first = await postCapture(server, config.token, firstId);
+  const second = await postCapture(server, config.token, secondId);
+  assert.equal(first.status, 202);
+  assert.equal(second.status, 202);
+  assert.deepEqual(calls, [firstId]);
+
+  releaseFirst();
+  await waitFor(() => calls.length === 2);
+  assert.deepEqual(calls, [firstId, secondId]);
+});
+
+test("createServer continues queued delivery after a rejection", async (t) => {
+  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
+  const config = loadConfig(
+    { CMDCMD_RELAY_TOKEN: "secret", CMDCMD_INBOX_DIR: inboxDir },
+    { cwd: process.cwd() }
+  );
+  const calls = [];
+  const server = createServer({
+    config,
+    codexClient: {
+      async deliver(capture) {
+        calls.push(capture.captureId);
+        if (calls.length === 1) {
+          throw new Error("First delivery failed");
+        }
+        return { status: "delivered", deliveryLane: "desktop-attachment" };
+      }
+    },
+    logger: { error() {}, info() {} }
+  });
+  await listen(server);
+  t.after(() => server.close());
+
+  const firstId = "99999999-9999-4999-8999-999999999999";
+  const secondId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const first = await postCapture(server, config.token, firstId);
+  const second = await postCapture(server, config.token, secondId);
+  assert.equal(first.status, 202);
+  assert.equal(second.status, 202);
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const failed = await waitForStatus(`${baseUrl}/v1/captures/${firstId}/status`, config.token, "failed");
+  const delivered = await waitForStatus(`${baseUrl}/v1/captures/${secondId}/status`, config.token, "delivered");
+  assert.match(failed.message, /First delivery failed/);
+  assert.equal(delivered.captureId, secondId);
+  assert.deepEqual(calls, [firstId, secondId]);
+});
+
+test("createServer preserves maximum-body and malformed-JSON responses", async (t) => {
+  const inboxDir = await fs.mkdtemp(path.join(os.tmpdir(), "cmd-cmd-relay-"));
+  const loaded = loadConfig(
+    { CMDCMD_RELAY_TOKEN: "secret", CMDCMD_INBOX_DIR: inboxDir },
+    { cwd: process.cwd() }
+  );
+  const server = createServer({
+    config: { ...loaded, maxBodyBytes: 8 },
+    codexClient: { async deliver() { throw new Error("Unexpected delivery"); } },
+    logger: { error() {}, info() {} }
+  });
+  await listen(server);
+  t.after(() => server.close());
+  const url = `http://127.0.0.1:${server.address().port}/v1/captures`;
+  const headers = { Authorization: "Bearer secret", "Content-Type": "application/json" };
+
+  const oversized = await fetch(url, { method: "POST", headers, body: "{\"long\":true}" });
+  assert.equal(oversized.status, 413);
+  assert.deepEqual(await oversized.json(), { error: "Request body is too large." });
+
+  const malformed = await fetch(url, { method: "POST", headers, body: "{" });
+  assert.equal(malformed.status, 400);
+  assert.deepEqual(await malformed.json(), { error: "Request body must be valid JSON." });
+});
+
 test("invalid payloads are rejected before storage", async () => {
   await assert.rejects(
     () =>
@@ -660,6 +798,80 @@ function listen(server) {
       resolve();
     });
   });
+}
+
+async function postCapture(server, token, captureId) {
+  return fetch(`http://127.0.0.1:${server.address().port}/v1/captures`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ ...samplePayload, captureId })
+  });
+}
+
+function sendRawRequest(port, body, splitIndex) {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection(port, "127.0.0.1");
+    const responseChunks = [];
+    socket.on("error", reject);
+    socket.on("data", (chunk) => responseChunks.push(chunk));
+    socket.on("end", () => resolve(Buffer.concat(responseChunks)));
+    socket.on("connect", () => {
+      socket.write([
+        "POST /v1/captures HTTP/1.1",
+        "Host: 127.0.0.1",
+        "Authorization: Bearer secret",
+        "Content-Type: application/json",
+        `Content-Length: ${body.length}`,
+        "Connection: close",
+        "",
+        ""
+      ].join("\r\n"));
+      socket.write(body.subarray(0, splitIndex), () => {
+        setImmediate(() => socket.write(body.subarray(splitIndex)));
+      });
+    });
+  });
+}
+
+function decodeRawResponse(response) {
+  const separator = Buffer.from("\r\n\r\n");
+  const headerEnd = response.indexOf(separator);
+  assert.notEqual(headerEnd, -1);
+  const head = response.subarray(0, headerEnd).toString("utf8");
+  const encodedBody = response.subarray(headerEnd + separator.length);
+  if (!/^transfer-encoding:\s*chunked$/im.test(head)) {
+    return { head, body: encodedBody };
+  }
+
+  const chunks = [];
+  let offset = 0;
+  while (offset < encodedBody.length) {
+    const lineEnd = encodedBody.indexOf(Buffer.from("\r\n"), offset);
+    assert.notEqual(lineEnd, -1);
+    const size = Number.parseInt(encodedBody.subarray(offset, lineEnd).toString("ascii"), 16);
+    assert.ok(Number.isSafeInteger(size));
+    offset = lineEnd + 2;
+    if (size === 0) {
+      break;
+    }
+    chunks.push(encodedBody.subarray(offset, offset + size));
+    offset += size + 2;
+  }
+  return { head, body: Buffer.concat(chunks) };
+}
+
+async function waitFor(condition) {
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
+    if (condition()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.fail("Timed out waiting for condition");
 }
 
 async function waitForStatus(url, token, expectedStatus) {
