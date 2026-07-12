@@ -9,76 +9,116 @@ private let ocrLogger = Logger(
 )
 
 enum OCRService {
-    static func report(from imageData: Data) async -> OCRReport {
+    typealias Recognizer = @Sendable (Data, OCRCancellationController) async throws -> OCRRecognitionResult
+
+    static func report(from imageData: Data) async throws -> OCRReport {
+        try await report(
+            from: imageData,
+            timeoutNanoseconds: 4_000_000_000,
+            recognizer: { imageData, cancellation in
+                try await recognizeWithVision(
+                    imageData: imageData,
+                    cancellation: cancellation
+                )
+            }
+        )
+    }
+
+    static func report(
+        from imageData: Data,
+        timeoutNanoseconds: UInt64,
+        recognizer: @escaping Recognizer
+    ) async throws -> OCRReport {
         let startedAt = Date()
         ocrLogger.info("recognition task group started imageBytes=\(imageData.count, privacy: .public)")
+        let cancellation = OCRCancellationController()
 
-        return await withTaskGroup(of: OCRResult.self) { group in
-            group.addTask {
-                .recognized(await performRecognition(from: imageData))
-            }
+        return try await withTaskCancellationHandler {
+            try await withThrowingTaskGroup(of: OCRRaceResult.self) { group in
+                group.addTask {
+                    do {
+                        return .recognized(try await recognizer(imageData, cancellation))
+                    } catch is CancellationError {
+                        return .cancelled
+                    } catch {
+                        ocrLogger.error("recognition worker failed error=\(error.localizedDescription, privacy: .public)")
+                        return .recognized(.empty)
+                    }
+                }
 
-            group.addTask {
-                try? await Task.sleep(nanoseconds: 4_000_000_000)
-                return .timedOut
-            }
+                group.addTask {
+                    do {
+                        try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                        return .timedOut
+                    } catch {
+                        return .cancelled
+                    }
+                }
 
-            let result = await group.next() ?? .recognized(
-                RecognizedTextPayload(lines: [], averageConfidence: nil)
-            )
-            group.cancelAll()
-            switch result {
-            case .recognized(let payload):
-                let durationMs = elapsedMilliseconds(since: startedAt)
-                let text = payload.lines.joined(separator: "\n")
-                ocrLogger.info(
-                    "recognition task group completed textChars=\(text.count, privacy: .public) lines=\(payload.lines.count, privacy: .public) durationMs=\(durationMs, privacy: .public)"
-                )
-                return OCRReport(
-                    text: text,
-                    durationMs: durationMs,
-                    lineCount: payload.lines.count,
-                    characterCount: text.count,
-                    timedOut: false,
-                    averageConfidence: payload.averageConfidence
-                )
-            case .timedOut:
-                let durationMs = elapsedMilliseconds(since: startedAt)
-                ocrLogger.error(
-                    "recognition timed out durationMs=\(durationMs, privacy: .public)"
-                )
-                return OCRReport(
-                    text: "",
-                    durationMs: durationMs,
-                    lineCount: 0,
-                    characterCount: 0,
-                    timedOut: true,
-                    averageConfidence: nil
-                )
+                guard let firstResult = try await group.next() else {
+                    group.cancelAll()
+                    return makeReport(from: .empty, startedAt: startedAt, timedOut: false)
+                }
+
+                switch firstResult {
+                case .recognized(let result):
+                    group.cancelAll()
+                    while try await group.next() != nil {}
+                    try Task.checkCancellation()
+                    return makeReport(from: result, startedAt: startedAt, timedOut: false)
+                case .timedOut:
+                    cancellation.cancel()
+                    group.cancelAll()
+                    while try await group.next() != nil {}
+                    try Task.checkCancellation()
+                    let durationMs = elapsedMilliseconds(since: startedAt)
+                    ocrLogger.error("recognition timed out durationMs=\(durationMs, privacy: .public)")
+                    return makeReport(from: .empty, startedAt: startedAt, timedOut: true)
+                case .cancelled:
+                    cancellation.cancel()
+                    group.cancelAll()
+                    while try await group.next() != nil {}
+                    throw CancellationError()
+                }
             }
+        } onCancel: {
+            cancellation.cancel()
         }
     }
 
-    private static func performRecognition(from imageData: Data) async -> RecognizedTextPayload {
-        await Task.detached(priority: .userInitiated) {
+    private static func recognizeWithVision(
+        imageData: Data,
+        cancellation: OCRCancellationController
+    ) async throws -> OCRRecognitionResult {
+        try await Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
             guard let image = UIImage(data: imageData), let cgImage = image.cgImage else {
                 ocrLogger.error("recognition failed to decode image")
-                return RecognizedTextPayload(lines: [], averageConfidence: nil)
+                return .empty
             }
 
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
             request.minimumTextHeight = 0.012
+            cancellation.install {
+                request.cancel()
+            }
+            defer { cancellation.removeHandler() }
+            try cancellation.checkCancellation()
 
             let handler = VNImageRequestHandler(cgImage: cgImage, orientation: image.cgImageOrientation)
 
             do {
                 try handler.perform([request])
             } catch {
+                if cancellation.isCancelled || Task.isCancelled {
+                    throw CancellationError()
+                }
                 ocrLogger.error("vision request failed error=\(error.localizedDescription, privacy: .public)")
-                return RecognizedTextPayload(lines: [], averageConfidence: nil)
+                return .empty
             }
+            try cancellation.checkCancellation()
 
             let observations = request.results ?? []
             let candidates = observations
@@ -104,8 +144,28 @@ enum OCRService {
                 : Double(cleanedLines.map(\.confidence).reduce(0, +) / Float(cleanedLines.count))
 
             ocrLogger.info("vision request completed observations=\(observations.count, privacy: .public) rawLines=\(candidates.count, privacy: .public) cleanedLines=\(lines.count, privacy: .public)")
-            return RecognizedTextPayload(lines: lines, averageConfidence: averageConfidence)
+            return OCRRecognitionResult(lines: lines, averageConfidence: averageConfidence)
         }.value
+    }
+
+    private static func makeReport(
+        from result: OCRRecognitionResult,
+        startedAt: Date,
+        timedOut: Bool
+    ) -> OCRReport {
+        let durationMs = elapsedMilliseconds(since: startedAt)
+        let text = result.lines.joined(separator: "\n")
+        ocrLogger.info(
+            "recognition completed textChars=\(text.count, privacy: .public) lines=\(result.lines.count, privacy: .public) durationMs=\(durationMs, privacy: .public) timedOut=\(timedOut, privacy: .public)"
+        )
+        return OCRReport(
+            text: text,
+            durationMs: durationMs,
+            lineCount: result.lines.count,
+            characterCount: text.count,
+            timedOut: timedOut,
+            averageConfidence: result.averageConfidence
+        )
     }
 }
 
@@ -114,14 +174,63 @@ private struct RecognizedLine {
     var confidence: Float
 }
 
-private struct RecognizedTextPayload {
+struct OCRRecognitionResult: Sendable {
     var lines: [String]
     var averageConfidence: Double?
+
+    static let empty = OCRRecognitionResult(lines: [], averageConfidence: nil)
 }
 
-private enum OCRResult {
-    case recognized(RecognizedTextPayload)
+private enum OCRRaceResult: Sendable {
+    case recognized(OCRRecognitionResult)
     case timedOut
+    case cancelled
+}
+
+final class OCRCancellationController: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handler: (@Sendable () -> Void)?
+    private var cancelled = false
+
+    var isCancelled: Bool {
+        lock.withLock { cancelled }
+    }
+
+    func install(_ handler: @escaping @Sendable () -> Void) {
+        let shouldCancel = lock.withLock { () -> Bool in
+            if cancelled {
+                return true
+            }
+            self.handler = handler
+            return false
+        }
+        if shouldCancel {
+            handler()
+        }
+    }
+
+    func removeHandler() {
+        lock.withLock {
+            handler = nil
+        }
+    }
+
+    func cancel() {
+        let handler = lock.withLock { () -> (@Sendable () -> Void)? in
+            guard !cancelled else {
+                return nil
+            }
+            cancelled = true
+            return self.handler
+        }
+        handler?()
+    }
+
+    func checkCancellation() throws {
+        if isCancelled || Task.isCancelled {
+            throw CancellationError()
+        }
+    }
 }
 
 private enum OCRTextCleaner {

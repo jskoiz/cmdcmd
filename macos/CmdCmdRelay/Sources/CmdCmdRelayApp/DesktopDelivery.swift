@@ -4,6 +4,8 @@ import CoreGraphics
 import Foundation
 
 enum DesktopDelivery {
+    typealias KeyboardEventFactory = (CGEventSource, CGKeyCode, Bool) -> CGEvent?
+
     static func deliver(capture: CapturePayload, stored: StoredCapture, settings: RelaySettings) throws {
         try requireAccessibilityTrust()
 
@@ -110,8 +112,8 @@ enum DesktopDelivery {
             y: frame.origin.y + frame.height - 70
         )
 
-        postKey(source, key: 53, down: true)
-        postKey(source, key: 53, down: false)
+        try postKey(source, key: 53, down: true)
+        try postKey(source, key: 53, down: false)
         usleep(100_000)
         try postClick(source, point: clickPoint)
         usleep(150_000)
@@ -167,21 +169,33 @@ enum DesktopDelivery {
         _ source: CGEventSource,
         key: CGKeyCode,
         down: Bool,
-        flags: CGEventFlags = []
-    ) {
-        guard let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: down) else {
-            return
+        flags: CGEventFlags = [],
+        eventFactory: KeyboardEventFactory = makeKeyboardEvent
+    ) throws {
+        guard let event = eventFactory(source, key, down) else {
+            throw RelayHTTPError.server("Could not create keyboard event.")
         }
         event.flags = flags
         event.post(tap: .cghidEventTap)
         usleep(30_000)
     }
 
-    private static func postPaste(_ source: CGEventSource) throws {
-        postKey(source, key: 55, down: true, flags: .maskCommand)
-        postKey(source, key: 9, down: true, flags: .maskCommand)
-        postKey(source, key: 9, down: false, flags: .maskCommand)
-        postKey(source, key: 55, down: false)
+    static func postPaste(
+        _ source: CGEventSource,
+        eventFactory: KeyboardEventFactory = makeKeyboardEvent
+    ) throws {
+        try postKey(source, key: 55, down: true, flags: .maskCommand, eventFactory: eventFactory)
+        try postKey(source, key: 9, down: true, flags: .maskCommand, eventFactory: eventFactory)
+        try postKey(source, key: 9, down: false, flags: .maskCommand, eventFactory: eventFactory)
+        try postKey(source, key: 55, down: false, eventFactory: eventFactory)
+    }
+
+    private static func makeKeyboardEvent(
+        source: CGEventSource,
+        key: CGKeyCode,
+        down: Bool
+    ) -> CGEvent? {
+        CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: down)
     }
 
     private static func postClick(_ source: CGEventSource, point: CGPoint) throws {
@@ -214,7 +228,7 @@ enum DesktopDelivery {
         usleep(30_000)
     }
 
-    private static func attachmentText(capture: CapturePayload) -> String? {
+    static func attachmentText(capture: CapturePayload) -> String? {
         let rawRecognizedText = capture.recognizedText.trimmingCharacters(in: .whitespacesAndNewlines)
         let recognizedText = OCRAttachmentTextCleaner.clean(rawRecognizedText)
         let sections = [

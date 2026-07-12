@@ -120,7 +120,7 @@ struct SettingsView: View {
     }
 
     private var setupSiteURL: String {
-        "https://cmd.avmil.xyz"
+        "https://www.cmdcmd.click"
     }
 
     private var header: some View {

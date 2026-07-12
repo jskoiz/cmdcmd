@@ -2,6 +2,7 @@ import Foundation
 
 enum RelayHTTPError: Error, LocalizedError {
     case badRequest(String)
+    case requestTimeout
     case unauthorized
     case notFound(String)
     case payloadTooLarge
@@ -12,6 +13,8 @@ enum RelayHTTPError: Error, LocalizedError {
         switch self {
         case .badRequest:
             return 400
+        case .requestTimeout:
+            return 408
         case .unauthorized:
             return 401
         case .notFound:
@@ -21,7 +24,7 @@ enum RelayHTTPError: Error, LocalizedError {
         case .unsupportedMediaType:
             return 415
         case .server:
-            return 502
+            return 500
         }
     }
 
@@ -32,6 +35,8 @@ enum RelayHTTPError: Error, LocalizedError {
              .unsupportedMediaType(let message),
              .server(let message):
             return message
+        case .requestTimeout:
+            return "Request timed out."
         case .unauthorized:
             return "Unauthorized."
         case .payloadTooLarge:
@@ -54,8 +59,17 @@ struct CapturePayload {
     var imageData: Data
 
     static func decode(from data: Data) throws -> CapturePayload {
-        try PayloadValidator.rejectUnsupportedFields(in: data)
-        let decoded = try JSONDecoder().decode(RawCapturePayload.self, from: data)
+        let decoded: RawCapturePayload
+        do {
+            try PayloadValidator.rejectUnsupportedFields(in: data)
+            decoded = try JSONDecoder().decode(RawCapturePayload.self, from: data)
+        } catch let error as RelayHTTPError {
+            throw error
+        } catch is DecodingError {
+            throw RelayHTTPError.badRequest("Request body does not match the capture schema.")
+        } catch {
+            throw RelayHTTPError.badRequest("Request body must be valid JSON.")
+        }
 
         guard decoded.schemaVersion == 2 else {
             throw RelayHTTPError.badRequest("schemaVersion must be 2.")
@@ -257,4 +271,3 @@ private enum PayloadValidator {
         }
     }
 }
-

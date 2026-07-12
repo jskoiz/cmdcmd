@@ -1,10 +1,4 @@
-import OSLog
 import SwiftUI
-
-private let contentViewLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "com.jskoiz.CmdCmd",
-    category: "ContentView"
-)
 
 enum AppTab: String, CaseIterable, Identifiable, Hashable {
     case capture
@@ -51,16 +45,10 @@ struct ContentView: View {
         }
         .tint(Theme.brand)
         .onOpenURL { url in
-            guard url.scheme == "cmdcmd" else {
-                return
-            }
-
-            switch url.host() {
-            case "pair":
-                applyPairing(from: url)
-            case "settings":
+            switch AppDeepLink.parse(url) {
+            case .settings:
                 openSettings()
-            default:
+            case nil:
                 return
             }
         }
@@ -99,19 +87,6 @@ struct ContentView: View {
         }
     }
 
-    private func applyPairing(from url: URL) {
-        guard let pairing = PairingLink.parse(url) else {
-            contentViewLogger.error("pairing link rejected host=\(url.host() ?? "none", privacy: .public)")
-            openSettings()
-            return
-        }
-
-        contentViewLogger.info(
-            "pairing link accepted endpointHost=\(URL(string: pairing.endpoint)?.host() ?? "invalid", privacy: .public) tokenSuffix=\(String(pairing.token.suffix(6)), privacy: .public)"
-        )
-        store.applyPairing(endpoint: pairing.endpoint, apiToken: pairing.token)
-        openCapture()
-    }
 }
 
 #Preview {

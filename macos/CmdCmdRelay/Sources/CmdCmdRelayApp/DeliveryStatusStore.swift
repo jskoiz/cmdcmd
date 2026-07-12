@@ -8,7 +8,9 @@ struct DeliveryStatus: Codable, Equatable {
 }
 
 final class DeliveryStatusStore {
+    private static let maximumCount = 200
     private var statuses: [String: DeliveryStatus] = [:]
+    private var insertionOrder: [String] = []
     private let lock = NSLock()
 
     func accept(captureId: String, deliveryMode: RelayDeliveryMode = .codex) {
@@ -61,9 +63,22 @@ final class DeliveryStatusStore {
         return statuses[captureId]
     }
 
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return statuses.count
+    }
+
     private func set(_ status: DeliveryStatus) {
         lock.lock()
+        if statuses[status.captureId] == nil {
+            insertionOrder.append(status.captureId)
+        }
         statuses[status.captureId] = status
+        if statuses.count > Self.maximumCount {
+            let oldestCaptureId = insertionOrder.removeFirst()
+            statuses.removeValue(forKey: oldestCaptureId)
+        }
         lock.unlock()
     }
 

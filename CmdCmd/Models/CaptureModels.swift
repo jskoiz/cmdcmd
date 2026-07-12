@@ -157,6 +157,31 @@ struct PairingLink: Equatable {
     }
 }
 
+enum AppDeepLink: Equatable {
+    case settings
+
+    static func parse(_ url: URL) -> AppDeepLink? {
+        guard url.scheme == "cmdcmd", url.host() == "settings" else {
+            return nil
+        }
+        return .settings
+    }
+}
+
+struct SharedCaptureInput: Equatable {
+    var images: [SharedCaptureImage] = []
+    var sourceText: String = ""
+
+    var previewImageData: Data? {
+        images.first?.data
+    }
+}
+
+struct SharedCaptureImage: Equatable {
+    var data: Data
+    var filename: String
+}
+
 enum FailureSettingsDestination {
     case relay
     case systemApp

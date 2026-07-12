@@ -5,125 +5,66 @@
 
 # cmd+cmd
 
-cmd+cmd is a small iPhone companion for sending screenshots plus context into
-Codex Desktop.
+Send iPhone screenshots to Codex Desktop through a private relay on your Mac.
 
-It includes:
+cmd+cmd is an independent companion utility and is not affiliated with OpenAI.
 
-- A SwiftUI iOS app for endpoint setup, manual screenshot sending, and history.
-- A Share Extension so screenshots can be sent from the system share sheet.
-- An App Intent so Shortcuts can pass an image/file input from Back Tap, Action Button, or a custom shortcut.
-- On-device OCR with Vision before upload, including OCR timing and confidence
-  context.
+## Install
 
-The app sends JSON to the configured relay endpoint:
+1. Install [cmd+cmd from the App Store](https://apps.apple.com/app/id6776976333).
+2. On the Mac running Codex Desktop, install the native relay:
 
-```json
-{
-  "schemaVersion": 2,
-  "source": "shortcut",
-  "screenshotContext": {
-    "capturedAt": "2026-06-04T12:00:00.000Z",
-    "preparedAt": "2026-06-04T12:00:01.000Z",
-    "timeZoneIdentifier": "Pacific/Honolulu",
-    "source": "shortcut",
-    "sourceDetail": "Latest Screenshot",
-    "imageFilename": "IMG_0001.PNG",
-    "imageMimeType": "image/png",
-    "pixelWidth": 1290,
-    "pixelHeight": 2796,
-    "originalImageBytes": 2400000,
-    "uploadImageBytes": 1100000,
-    "ocrEnabled": true,
-    "ocrDurationMs": 842,
-    "ocrLineCount": 24,
-    "ocrCharacterCount": 560,
-    "ocrTimedOut": false,
-    "ocrAverageConfidence": 0.82,
-    "visibleApp": {
-      "name": "Photos",
-      "confidence": "high",
-      "evidence": ["Library", "Collections", "Syncing Paused"]
-    }
-  },
-  "context": "user supplied note",
-  "recognizedText": "OCR text",
-  "imageMimeType": "image/png",
-  "imageBase64": "..."
-}
-```
+   ```bash
+   curl -fsSL https://www.cmdcmd.click/install.sh | bash
+   ```
 
-## Ship-Ready Setup
+3. Open cmd+cmd on iPhone, go to Settings, tap `Scan Desktop QR`, and scan the
+   QR printed by the installer.
+4. Grant Accessibility permission when macOS asks so the relay can attach files
+   to the visible Codex Desktop composer.
 
-cmd+cmd is now designed as two user-facing pieces:
+The relay uses a private per-user token. Do not expose it on a shared or public
+network.
 
-- `cmd+cmd` for iPhone, distributed through TestFlight or the App Store.
-- `cmd+cmd Relay.app` for Mac, distributed as a signed and notarized download.
+## Repository
 
-The Mac relay installer is the preferred setup path for users. It installs the
-signed relay bundle under Application Support, prepares a private-network
-endpoint and per-user bearer token, starts the background LaunchAgent, waits for
-the relay to become reachable, and prints a terminal QR code. Users scan that
-QR inside the iPhone app to link the phone to this Mac.
+- `CmdCmd/`: SwiftUI iOS app and App Intent.
+- `ShareExtension/`: iOS Share Extension.
+- `macos/CmdCmdRelay/`: native macOS relay.
+- `site/`: public setup and privacy site.
+- `appstore/`: App Store metadata and screenshot assets.
 
-User install:
+## Development
+
+Run the complete repository check:
 
 ```bash
-curl -fsSL https://cmd.avmil.xyz/install.sh | bash
+./scripts/check.sh
 ```
 
-Phone pairing:
+Use `./scripts/check.sh --fast` while iterating on the native relay. The full
+check runs native tests plus the iOS simulator test/build harness with one reused
+DerivedData directory.
 
-1. Open `cmd+cmd` on iPhone.
-2. Go to Settings and tap `Scan Desktop QR`.
-3. Scan the QR printed by the Mac installer.
-4. Grant macOS Accessibility permission so the relay can attach screenshots
-   and context files to Codex Desktop.
-
-Release build:
+Build or test only the native relay:
 
 ```bash
-./scripts/package_macos.sh
+swift build --package-path macos/CmdCmdRelay
+swift test --package-path macos/CmdCmdRelay
 ```
 
-Set `DEVELOPER_ID_APPLICATION` to sign the Mac app. Notarize the exported zip
-before publishing it to the release URL used by `scripts/install-macos.sh`.
+Open `CmdCmd.xcodeproj` in Xcode for interactive iOS work.
 
-## Private Relay
+## Security model
 
-The repo includes two relay implementations:
+- Screenshots travel directly from the iPhone to the paired Mac relay.
+- Screenshots and metadata remain under the user's local Application Support
+  directory.
+- The relay never reads Codex credentials, sessions, cookies, or private app
+  files.
+- Accessibility is used only to focus Codex Desktop and attach the selected
+  screenshot and context sidecar.
 
-- `macos/CmdCmdRelay`: the native Mac relay for real users.
-- `relay/`: the Node.js developer relay for local testing and protocol work.
-
-Both relays receive the app payload, save the screenshot and metadata to a
-local inbox, activate Codex Desktop, and attach the screenshot plus a `.txt`
-context sidecar to the visible composer.
-
-The iOS app polls the relay status URL after upload so it can distinguish a
-queued receipt from a Codex Desktop attachment or a delivery failure.
-
-Developer relay quick start:
-
-```bash
-cd relay
-npm install
-cp .env.example .env
-npm start
-```
-
-Configure cmd+cmd's endpoint as `http://127.0.0.1:8787/v1/captures` for the
-iOS Simulator. For a physical phone, prefer the installer QR so the iPhone gets
-the Mac's private-network endpoint and matching bearer token.
-Do not expose the relay on a shared or public network.
-
-See `relay/README.md` for setup and smoke test instructions.
-
-## Website
-
-The static setup site lives in `site/` and can be deployed as-is:
-
-```bash
-cd site
-python3 -m http.server 4173
-```
+See [macos/CmdCmdRelay/README.md](macos/CmdCmdRelay/README.md) for native relay
+development and packaging details. The public privacy policy is at
+[www.cmdcmd.click/privacy](https://www.cmdcmd.click/privacy).

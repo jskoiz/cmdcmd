@@ -11,8 +11,10 @@ LOG_DIR="$HOME/Library/Logs"
 OUT_LOG="$LOG_DIR/cmdcmd-relay.log"
 ERR_LOG="$LOG_DIR/cmdcmd-relay.err.log"
 RELAY_HEALTH_URL="http://127.0.0.1:8787/healthz"
-RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://cmd.avmil.xyz/dl}"
-ARCHIVE_NAME="${CMDCMD_RELAY_ARCHIVE_NAME:-CmdCmdRelay-macOS-20260605-6.zip}"
+RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://www.cmdcmd.click/dl}"
+ARCHIVE_NAME="${CMDCMD_RELAY_ARCHIVE_NAME:-CmdCmdRelay-macOS-20260611-2.zip}"
+LOCAL_ARCHIVE_NAME="CmdCmdRelay-macOS.zip"
+EXPECTED_TEAM_IDENTIFIER="H8PYU9TN9X"
 REVIEW_MODE="0"
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
 if [[ -n "$SCRIPT_SOURCE" && "$SCRIPT_SOURCE" != bash ]]; then
@@ -20,7 +22,7 @@ if [[ -n "$SCRIPT_SOURCE" && "$SCRIPT_SOURCE" != bash ]]; then
 else
   ROOT_DIR="$(pwd)"
 fi
-LOCAL_ARCHIVE="$ROOT_DIR/dist/cmdcmd-relay/$ARCHIVE_NAME"
+LOCAL_ARCHIVE="$ROOT_DIR/dist/cmdcmd-relay/$LOCAL_ARCHIVE_NAME"
 TMP_DIR="$(mktemp -d)"
 
 cleanup() {
@@ -75,45 +77,36 @@ download_archive() {
 
   if [[ -f "$LOCAL_ARCHIVE" ]]; then
     cp "$LOCAL_ARCHIVE" "$archive"
-    if [[ -f "$LOCAL_ARCHIVE.sha256" ]]; then
-      cp "$LOCAL_ARCHIVE.sha256" "$checksum"
-    fi
-  else
-    curl -fsSL "$RELEASE_BASE_URL/$ARCHIVE_NAME" -o "$archive"
-    curl -fsSL "$RELEASE_BASE_URL/$ARCHIVE_NAME.sha256" -o "$checksum" || true
-  fi
-
-  if [[ -f "$checksum" ]]; then
-    local expected
-    local actual
-    expected="$(awk '{print $1}' "$checksum")"
-    actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
-    if [[ "$expected" != "$actual" ]]; then
-      echo "Checksum mismatch for $ARCHIVE_NAME" >&2
+    if [[ ! -f "$LOCAL_ARCHIVE.sha256" ]]; then
+      echo "Missing checksum for local archive: $LOCAL_ARCHIVE.sha256" >&2
       exit 1
     fi
+    cp "$LOCAL_ARCHIVE.sha256" "$checksum"
+  else
+    curl -fsSL "$RELEASE_BASE_URL/$ARCHIVE_NAME" -o "$archive"
+    curl -fsSL "$RELEASE_BASE_URL/$ARCHIVE_NAME.sha256" -o "$checksum"
+  fi
+
+  local expected
+  local actual
+  expected="$(awk 'NF {print $1; exit}' "$checksum")"
+  if [[ ${#expected} -ne 64 || "$expected" == *[!0-9A-Fa-f]* ]]; then
+    echo "Invalid checksum for $ARCHIVE_NAME" >&2
+    exit 1
+  fi
+  actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+  if [[ "$expected" != "$actual" ]]; then
+    echo "Checksum mismatch for $ARCHIVE_NAME" >&2
+    exit 1
   fi
 
   echo "$archive"
 }
 
 stop_existing_relay() {
-  local pids
-  local native_pids
-  local legacy_pids
   launchctl bootout "gui/$(id -u)" "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
-  pids="$(pgrep -f "cmd\\+cmd Relay\\.app/Contents/MacOS/CmdCmdRelayApp" || true)"
-  if [[ -n "$pids" ]]; then
-    kill $pids >/dev/null 2>&1 || true
-  fi
-  native_pids="$(pgrep -f "CmdCmdRelayApp --serve" || true)"
-  if [[ -n "$native_pids" ]]; then
-    kill $native_pids >/dev/null 2>&1 || true
-  fi
-  legacy_pids="$(ps ax -o pid=,command= | awk '/\/(CodexShot|CmdCmd)\/relay\/src\/index\.js/ {print $1}' || true)"
-  if [[ -n "$legacy_pids" ]]; then
-    kill $legacy_pids >/dev/null 2>&1 || true
-  fi
+  pkill -f "cmd\\+cmd Relay\\.app/Contents/MacOS/CmdCmdRelayApp" >/dev/null 2>&1 || true
+  pkill -f "CmdCmdRelayApp --serve" >/dev/null 2>&1 || true
 }
 
 wait_for_existing_relay_to_stop() {
@@ -150,7 +143,7 @@ start_background_relay() {
 
 wait_for_relay() {
   for _ in {1..40}; do
-    if curl -fsS "$RELAY_HEALTH_URL" 2>/dev/null | grep -q "cmdcmd-native"; then
+    if curl -fsS "$RELAY_HEALTH_URL" 2>/dev/null | grep -q '"relay":"cmdcmd-native"'; then
       return 0
     fi
     sleep 0.25
@@ -166,29 +159,13 @@ wait_for_relay() {
   exit 1
 }
 
-verify_relay_identity() {
-  local health
-  local escaped_executable
-  health="$(curl -fsS "$RELAY_HEALTH_URL" 2>/dev/null || true)"
-  escaped_executable="${RELAY_EXECUTABLE//\//\\/}"
-  if [[ "$health" == *"\"executablePath\":\"$RELAY_EXECUTABLE\""* ]] ||
-     [[ "$health" == *"\"executablePath\":\"$escaped_executable\""* ]]; then
-    return 0
-  fi
-
-  echo "Relay health check is not served by the installed relay." >&2
-  echo "Expected: $RELAY_EXECUTABLE" >&2
-  echo "Health: ${health:-unreachable}" >&2
-  exit 1
-}
-
 wait_for_relay_accessibility() {
   if [[ "$REVIEW_MODE" == "1" ]]; then
     return 0
   fi
 
   for _ in {1..60}; do
-    if curl -fsS "$RELAY_HEALTH_URL" 2>/dev/null | grep -q '"accessibility":"granted"'; then
+    if "$RELAY_EXECUTABLE" --accessibility-status >/dev/null 2>&1; then
       return 0
     fi
     sleep 0.5
@@ -247,11 +224,18 @@ else
   exit 1
 fi
 
+SIGNING_INFO="$(codesign -dv --verbose=4 "$APP_PATH" 2>&1)"
+TEAM_IDENTIFIER="$(awk -F= '/^TeamIdentifier=/ {print $2; exit}' <<<"$SIGNING_INFO")"
+if [[ "$TEAM_IDENTIFIER" != "$EXPECTED_TEAM_IDENTIFIER" ]]; then
+  echo "Installed bundle is not signed by the expected developer team." >&2
+  exit 1
+fi
+echo "Developer team verified."
+
 prepare_pairing
 request_accessibility
 start_background_relay
 wait_for_relay
-verify_relay_identity
 wait_for_relay_accessibility
 print_pairing_qr
 

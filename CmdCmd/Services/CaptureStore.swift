@@ -53,15 +53,14 @@ final class CaptureStore {
         note: String,
         source: CaptureSource,
         imageMetadata: CaptureImageMetadata = .empty
-    ) async -> CaptureRecord {
-        let record = await CapturePipeline.submit(
+    ) async throws -> CaptureRecord {
+        defer { reload() }
+        return try await CapturePipeline.submit(
             imageData: imageData,
             filename: filename,
             note: note,
             source: source,
             imageMetadata: imageMetadata
         )
-        reload()
-        return record
     }
 }

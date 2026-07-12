@@ -30,7 +30,7 @@ enum TerminalRelayCommand {
         }
 
         if options.contains("--print-health-url") {
-            let settings = RelaySettingsStore.load()
+            let settings = loadSettingsOrExit()
             print("http://127.0.0.1:\(settings.port)/healthz")
             return true
         }
@@ -145,7 +145,7 @@ enum TerminalRelayCommand {
         let statusStore = DeliveryStatusStore()
         let server = RelayHTTPServer(
             settingsProvider: {
-                RelaySettingsStore.load()
+                try RelaySettingsStore.loadOrCreate()
             },
             statusStore: statusStore,
             eventHandler: { event in
@@ -155,7 +155,7 @@ enum TerminalRelayCommand {
 
         do {
             try server.start()
-            let settings = RelaySettingsStore.load()
+            let settings = try RelaySettingsStore.loadOrCreate()
             log("ready on \(settings.phoneEndpoint.absoluteString) (\(settings.deliveryMode.logLabel))")
         } catch {
             fputs("cmd+cmd relay failed: \(error.localizedDescription)\n", stderr)
@@ -196,24 +196,27 @@ enum TerminalRelayCommand {
     }
 
     private static func preparePhonePairingSettings(deliveryMode: RelayDeliveryMode? = nil) -> RelaySettings {
-        var settings = RelaySettingsStore.load()
-
-        if settings.host != "0.0.0.0" {
-            settings.host = "0.0.0.0"
-        }
-
-        if let deliveryMode {
-            settings.deliveryMode = deliveryMode
-        }
-
         do {
+            var settings = try RelaySettingsStore.loadOrCreate()
+            settings.host = "0.0.0.0"
+            if let deliveryMode {
+                settings.deliveryMode = deliveryMode
+            }
             try RelaySettingsStore.save(settings)
+            return settings
         } catch {
-            fputs("Could not save relay settings: \(error.localizedDescription)\n", stderr)
+            fputs("Could not prepare relay settings: \(error.localizedDescription)\n", stderr)
             Foundation.exit(1)
         }
+    }
 
-        return settings
+    private static func loadSettingsOrExit() -> RelaySettings {
+        do {
+            return try RelaySettingsStore.loadOrCreate()
+        } catch {
+            fputs("Could not load relay settings: \(error.localizedDescription)\n", stderr)
+            Foundation.exit(1)
+        }
     }
 
     private static func log(_ event: RelayEvent) {
