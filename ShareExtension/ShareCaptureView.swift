@@ -1,36 +1,74 @@
 import SwiftUI
-import UIKit
 
 struct ShareCaptureView: View {
-    var loadInput: () async -> SharedCaptureInput
-    var finish: () -> Void
-    var openSettings: (@escaping (Bool) -> Void) -> Void = { completion in
-        completion(false)
-    }
+    private let finish: () -> Void
+    private let openSettings: (@escaping (Bool) -> Void) -> Void
 
-    @State private var input = SharedCaptureInput()
-    @State private var phase: ShareSendPhase = .loading
-    @State private var didStart = false
+    @State private var coordinator: ShareBatchCoordinator
     @State private var isShowingFailureHelp = false
+
+    init(
+        loadInput: @escaping ShareBatchCoordinator.InputLoader,
+        finish: @escaping () -> Void,
+        openSettings: @escaping (@escaping (Bool) -> Void) -> Void = { completion in
+            completion(false)
+        }
+    ) {
+        self.finish = finish
+        self.openSettings = openSettings
+        _coordinator = State(initialValue: ShareBatchCoordinator(
+            loadInput: loadInput,
+            submit: { image, sourceText, index, total in
+                try await CapturePipeline.submit(
+                    imageData: image.data,
+                    filename: Self.filename(for: image, index: index, total: total),
+                    note: sourceText,
+                    source: .shareExtension,
+                    sourceDetail: Self.sourceDetail(index: index, total: total)
+                )
+            },
+            endpointFailure: ShareBatchCoordinator.currentEndpointFailure,
+            finish: finish
+        ))
+    }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: phase.canRetry ? 14 : 10) {
-                statusPanel
-                actionPanel
+            VStack(spacing: coordinator.phase.canRetry ? 14 : 10) {
+                CaptureFeedbackView(
+                    phase: coordinator.phase.feedbackPhase,
+                    imageData: coordinator.input.previewImageData,
+                    imageCount: coordinator.input.images.count,
+                    message: coordinator.phase.feedbackMessage,
+                    openSettings: coordinator.phase.canOpenSettings ? openSettingsForCurrentFailure : nil,
+                    settingsActionTitle: CaptureFailurePresentation.settingsActionTitle(
+                        for: coordinator.phase.feedbackMessage
+                    )
+                )
+
+                ShareActionPanel(
+                    phase: coordinator.phase,
+                    close: finish,
+                    retry: coordinator.retry
+                )
             }
-            .animation(.spring(response: 0.44, dampingFraction: 0.86), value: phase.canClose)
+            .animation(.spring(response: 0.44, dampingFraction: 0.86), value: coordinator.phase.canClose)
             .padding(.horizontal, 22)
-            .padding(.vertical, phase.canRetry ? 18 : 16)
+            .padding(.vertical, coordinator.phase.canRetry ? 18 : 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .background {
-                AppBackground()
-            }
+            .background { AppBackground() }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .task {
-                await loadAndSendOnce()
+                coordinator.start()
+                await coordinator.waitUntilIdle()
+            }
+            .onDisappear {
+                coordinator.cancel()
+            }
+            .onChange(of: coordinator.phase) { oldPhase, newPhase in
+                playFeedback(from: oldPhase, to: newPhase)
             }
             .alert("Fix Relay Connection", isPresented: $isShowingFailureHelp) {
                 Button("OK", role: .cancel) {}
@@ -40,181 +78,23 @@ struct ShareCaptureView: View {
         }
     }
 
-    private var statusPanel: some View {
-        AppshotCaptureFeedbackView(
-            phase: phase.feedbackPhase,
-            imageData: input.previewImageData,
-            imageCount: input.images.count,
-            message: phase.feedbackMessage,
-            openSettings: openSettingsForCurrentFailure,
-            settingsActionTitle: CaptureFailurePresentation.settingsActionTitle(for: phase.feedbackMessage)
-        )
-    }
-
-    @ViewBuilder
-    private var actionPanel: some View {
-        if phase.canClose {
-            HStack(spacing: 12) {
-                ShareActionButton(title: phase.closeActionTitle, style: phase.closeActionStyle, action: finish)
-
-                if phase.canRetry {
-                    ShareActionButton(title: "Try Again", style: .primary) {
-                        Task { await send(input) }
-                    }
-                }
-            }
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
-        }
-    }
-
-    private func loadAndSendOnce() async {
-        guard !didStart else {
-            return
+    private func playFeedback(from oldPhase: ShareBatchPhase, to newPhase: ShareBatchPhase) {
+        if newPhase.isSending, !oldPhase.isSending {
+            CaptureFeedback.shared.playCaptureStart()
         }
 
-        didStart = true
-        phase = .loading
-        guard let loadedInput = await loadInputWithTimeout() else {
-            phase = .failed("Couldn't load the shared image. Close and try sharing again.")
-            AppshotFeedback.shared.playCompletion(success: false)
-            return
+        switch newPhase {
+        case .sent:
+            CaptureFeedback.shared.playCompletion(success: true)
+        case .pending, .failed:
+            CaptureFeedback.shared.playCompletion(success: false)
+        case .loading, .sending:
+            break
         }
-
-        input = loadedInput
-        await send(input)
-    }
-
-    // iOS occasionally stalls when handing attachments to the extension; without a
-    // timeout the sheet would sit on "Preparing" forever. A task group can't model
-    // this: it waits for all children, and the NSItemProvider loads don't observe
-    // cancellation. Race two tasks for a single continuation instead, abandoning
-    // the load if the deadline wins.
-    @MainActor
-    private func loadInputWithTimeout(seconds: UInt64 = 10) async -> SharedCaptureInput? {
-        final class Resumed {
-            var value = false
-        }
-
-        let resumed = Resumed()
-        return await withCheckedContinuation { continuation in
-            @MainActor func resume(with input: SharedCaptureInput?) {
-                guard !resumed.value else { return }
-                resumed.value = true
-                continuation.resume(returning: input)
-            }
-
-            Task { resume(with: await loadInput()) }
-            Task {
-                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
-                resume(with: nil)
-            }
-        }
-    }
-
-    private func send(_ input: SharedCaptureInput) async {
-        guard !input.images.isEmpty else {
-            phase = .failed("No image was shared.")
-            AppshotFeedback.shared.playCompletion(success: false)
-            return
-        }
-
-        // Fail fast on a missing/invalid endpoint before the pipeline spends
-        // extension time and memory normalizing the image and running OCR.
-        if let endpointFailure = localEndpointFailureMessage() {
-            phase = .failed(endpointFailure)
-            AppshotFeedback.shared.playCompletion(success: false)
-            return
-        }
-
-        phase = .loading
-        AppshotFeedback.shared.playCaptureStart()
-
-        #if targetEnvironment(simulator)
-        await simulateSimulatorSend()
-        #else
-        var sentCount = 0
-        let total = input.images.count
-        for imageIndex in input.images.indices {
-            let ordinal = imageIndex + 1
-            phase = .sending(current: ordinal, total: total)
-            let record = await CapturePipeline.submit(
-                imageData: input.images[imageIndex].data,
-                filename: filename(for: input.images[imageIndex], index: imageIndex, total: total),
-                note: input.sourceText,
-                source: .shareExtension,
-                sourceDetail: sourceDetail(index: imageIndex, total: total)
-            )
-
-            guard record.status == .sent else {
-                phase = .failed(failureMessage(for: record, sentCount: sentCount, total: total))
-                AppshotFeedback.shared.playCompletion(success: false)
-                return
-            }
-            sentCount += 1
-        }
-
-        phase = .sent(total)
-        AppshotFeedback.shared.playCompletion(success: true)
-        await dismissAfterSuccess()
-        #endif
-    }
-
-    private func localEndpointFailureMessage() -> String? {
-        let endpoint = CaptureRepository.loadSettings().endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-        if endpoint.isEmpty {
-            return RelayClientError.missingEndpoint.localizedDescription
-        }
-
-        guard let url = URL(string: endpoint), let scheme = url.scheme,
-              ["http", "https"].contains(scheme) else {
-            return RelayClientError.invalidEndpoint.localizedDescription
-        }
-
-        return nil
-    }
-
-    private func dismissAfterSuccess() async {
-        try? await Task.sleep(nanoseconds: 1_200_000_000)
-        if case .sent = phase {
-            finish()
-        }
-    }
-
-    #if targetEnvironment(simulator)
-    private func simulateSimulatorSend() async {
-        let total = max(input.images.count, 1)
-        for ordinal in 1...total {
-            phase = .sending(current: ordinal, total: total)
-            try? await Task.sleep(nanoseconds: 450_000_000)
-        }
-        phase = .sent(total)
-        AppshotFeedback.shared.playCompletion(success: true)
-        await dismissAfterSuccess()
-    }
-    #endif
-
-    private func filename(for image: SharedCaptureImage, index: Int, total: Int) -> String {
-        let filename = image.filename.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !filename.isEmpty {
-            return filename
-        }
-        return total > 1 ? "shared-screenshot-\(index + 1).png" : "shared-screenshot.png"
-    }
-
-    private func sourceDetail(index: Int, total: Int) -> String {
-        total > 1 ? "Share Sheet \(index + 1) of \(total)" : "Share Sheet"
-    }
-
-    private func failureMessage(for record: CaptureRecord, sentCount: Int, total: Int) -> String {
-        guard total > 1 else {
-            return record.statusMessage
-        }
-
-        return "Sent \(sentCount) of \(total). \(record.statusMessage)"
     }
 
     private func openSettingsForCurrentFailure() {
-        switch CaptureFailurePresentation.settingsDestination(for: phase.feedbackMessage) {
+        switch CaptureFailurePresentation.settingsDestination(for: coordinator.phase.feedbackMessage) {
         case .relay:
             openSettings { didOpen in
                 Task { @MainActor in
@@ -229,11 +109,46 @@ struct ShareCaptureView: View {
     }
 
     private var failureHelpMessage: String {
-        if let message = phase.feedbackMessage, !message.isEmpty {
+        if let message = coordinator.phase.feedbackMessage, !message.isEmpty {
             return "\(message)\n\nIf iOS shows a Local Network toggle for cmd+cmd, turn it on. If that toggle is missing, open cmd+cmd relay settings and confirm the endpoint matches the Mac relay URL."
         }
-
         return "Open cmd+cmd relay settings and confirm the endpoint matches the Mac relay URL."
+    }
+
+    private static func filename(for image: SharedCaptureImage, index: Int, total: Int) -> String {
+        let filename = image.filename.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !filename.isEmpty {
+            return filename
+        }
+        return total > 1 ? "shared-screenshot-\(index + 1).png" : "shared-screenshot.png"
+    }
+
+    private static func sourceDetail(index: Int, total: Int) -> String {
+        total > 1 ? "Share Sheet \(index + 1) of \(total)" : "Share Sheet"
+    }
+}
+
+private struct ShareActionPanel: View {
+    var phase: ShareBatchPhase
+    var close: () -> Void
+    var retry: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ShareActionButton(
+                title: phase.closeActionTitle,
+                style: phase.closeActionStyle,
+                action: close
+            )
+
+            if phase.canRetry {
+                ShareActionButton(title: "Try Again", style: .primary, action: retry)
+            }
+        }
+        .opacity(phase.canClose ? 1 : 0)
+        .allowsHitTesting(phase.canClose)
+        .accessibilityHidden(!phase.canClose)
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 }
 
@@ -282,13 +197,8 @@ private struct ShareActionButton: View {
     }
 }
 
-private enum ShareSendPhase: Equatable {
-    case loading
-    case sending(current: Int, total: Int)
-    case sent(Int)
-    case failed(String)
-
-    var feedbackPhase: AppshotSendFeedbackPhase {
+private extension ShareBatchPhase {
+    var feedbackPhase: CaptureSendFeedbackPhase {
         switch self {
         case .loading:
             .preparing
@@ -296,51 +206,38 @@ private enum ShareSendPhase: Equatable {
             .sending
         case .sent:
             .sent
+        case .pending:
+            .pending
         case .failed:
             .failed
         }
     }
 
-    var feedbackMessage: String? {
-        switch self {
-        case .loading, .sending, .sent:
-            nil
-        case .failed(let message):
-            message
-        }
-    }
-
-    var canRetry: Bool {
+    var canOpenSettings: Bool {
         if case .failed = self {
             return true
         }
         return false
     }
 
-    var canClose: Bool {
-        switch self {
-        case .sent, .failed:
-            true
-        case .loading, .sending:
-            false
+    var isSending: Bool {
+        if case .sending = self {
+            return true
         }
+        return false
     }
 
     var closeActionTitle: String {
-        switch self {
-        case .sent:
-            "Continue"
-        case .loading, .sending, .failed:
-            "Close"
+        if case .sent = self {
+            return "Continue"
         }
+        return "Close"
     }
 
     var closeActionStyle: ShareActionButton.Style {
-        switch self {
-        case .sent:
-            .primary
-        case .loading, .sending, .failed:
-            .secondary
+        if case .sent = self {
+            return .primary
         }
+        return .secondary
     }
 }

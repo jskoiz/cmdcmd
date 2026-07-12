@@ -1,3 +1,2 @@
 [commands]
-build = "scripts/build_sim.sh"
-
+build = "scripts/check.sh"

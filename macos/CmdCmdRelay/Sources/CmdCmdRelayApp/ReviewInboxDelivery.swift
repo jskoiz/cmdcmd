@@ -2,9 +2,16 @@ import AppKit
 import Foundation
 
 enum ReviewInboxDelivery {
+    typealias OpenInboxHandler = (URL) -> Void
+
     private static let lock = NSLock()
 
-    static func deliver(capture: CapturePayload, stored: StoredCapture, settings: RelaySettings) throws {
+    static func deliver(
+        capture: CapturePayload,
+        stored: StoredCapture,
+        settings: RelaySettings,
+        openInboxHandler: OpenInboxHandler = { openInbox($0) }
+    ) throws {
         lock.lock()
         defer { lock.unlock() }
 
@@ -17,16 +24,19 @@ enum ReviewInboxDelivery {
             attributes: [.posixPermissions: 0o700]
         )
 
+        let manifestURL = inboxURL.appendingPathComponent("captures.json")
+        var entries = try loadEntries(from: manifestURL)
         let assetURL = capturesURL.appendingPathComponent("\(capture.captureId).\(extensionName(for: capture))")
         try capture.imageData.write(to: assetURL, options: [.atomic])
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: assetURL.path)
-
-        let manifestURL = inboxURL.appendingPathComponent("captures.json")
-        var entries = loadEntries(from: manifestURL)
         entries.removeAll { $0.captureId == capture.captureId }
         entries.insert(ReviewInboxEntry(capture: capture, stored: stored, assetURL: assetURL), at: 0)
+        let evictedEntries: [ReviewInboxEntry]
         if entries.count > 50 {
+            evictedEntries = Array(entries.dropFirst(50))
             entries = Array(entries.prefix(50))
+        } else {
+            evictedEntries = []
         }
 
         let encoder = JSONEncoder()
@@ -38,19 +48,45 @@ enum ReviewInboxDelivery {
         try renderHTML(entries: entries).write(to: indexURL, atomically: true, encoding: .utf8)
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: indexURL.path)
 
-        openInbox(indexURL)
+        try deleteManagedAssets(for: evictedEntries, in: capturesURL)
+        openInboxHandler(indexURL)
     }
 
-    private static func loadEntries(from url: URL) -> [ReviewInboxEntry] {
-        guard let data = try? Data(contentsOf: url),
-              let entries = try? JSONDecoder().decode([ReviewInboxEntry].self, from: data) else {
+    private static func loadEntries(from url: URL) throws -> [ReviewInboxEntry] {
+        guard FileManager.default.fileExists(atPath: url.path) else {
             return []
         }
-        return entries
+
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode([ReviewInboxEntry].self, from: data)
+        } catch {
+            throw RelayHTTPError.server(
+                "Review inbox history is unreadable. The existing history was preserved."
+            )
+        }
     }
 
     private static func extensionName(for capture: CapturePayload) -> String {
         capture.imageMimeType == "image/jpeg" ? "jpg" : "png"
+    }
+
+    private static func deleteManagedAssets(for entries: [ReviewInboxEntry], in capturesURL: URL) throws {
+        let managedDirectory = capturesURL.standardizedFileURL
+        for entry in entries {
+            let filename = entry.assetFilename
+            guard !filename.isEmpty,
+                  URL(fileURLWithPath: filename).lastPathComponent == filename else {
+                continue
+            }
+
+            let assetURL = capturesURL.appendingPathComponent(filename, isDirectory: false).standardizedFileURL
+            guard assetURL.deletingLastPathComponent() == managedDirectory,
+                  FileManager.default.fileExists(atPath: assetURL.path) else {
+                continue
+            }
+            try FileManager.default.removeItem(at: assetURL)
+        }
     }
 
     private static func openInbox(_ url: URL) {

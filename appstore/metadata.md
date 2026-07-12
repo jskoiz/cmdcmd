@@ -9,9 +9,9 @@ Content Rights: This app does not contain, show, or access third-party content u
 
 ## URLs
 
-Marketing URL: https://cmd.avmil.xyz/
-Support URL: https://cmd.avmil.xyz/
-Privacy Policy URL: https://cmd.avmil.xyz/privacy
+Marketing URL: https://www.cmdcmd.click/
+Support URL: https://www.cmdcmd.click/
+Privacy Policy URL: https://www.cmdcmd.click/privacy
 
 ## Promotional Text
 
@@ -22,6 +22,9 @@ Send iPhone screenshots to Codex Desktop through your paired Mac.
 cmd+cmd sends screenshots from iPhone to Codex Desktop.
 
 Pair with the Mac relay, choose a screenshot, and send. Share Sheet, Shortcuts, and Back Tap are supported. OCR text can be included.
+
+cmd+cmd is free. It does not include paid content, subscriptions, in-app
+purchases, accounts, or external purchase flows.
 
 cmd+cmd is independent and is not affiliated with OpenAI.
 
@@ -41,7 +44,7 @@ The app sends user-selected screenshots to a Mac relay controlled by the user. S
 
 Reviewer setup:
 
-1. On a Mac, run `curl -fsSL https://cmd.avmil.xyz/install.sh | bash -s -- --review-mode`.
+1. On a Mac, run `curl -fsSL https://www.cmdcmd.click/install.sh | bash -s -- --review-mode`.
 2. Open cmd+cmd on iPhone.
 3. In Settings, tap Scan Desktop QR and scan the QR shown in Terminal.
 4. Choose or share a screenshot, then send it.
@@ -49,13 +52,7 @@ Reviewer setup:
 
 Review mode does not require Codex Desktop, an OpenAI account, or macOS Accessibility permission.
 
-Normal user mode uses the same installer without `--review-mode` and sends to Codex Desktop. The relay download is Developer ID signed and notarized.
-
-## TestFlight
-
-Do not add existing tester groups.
-Do not create a public link.
-Only Jerry Koizumi (`jerry@avmillabs.com`) should be added for TestFlight testing.
+Normal user mode uses the same installer without `--review-mode` and sends to Codex Desktop.
 
 ## App Privacy
 

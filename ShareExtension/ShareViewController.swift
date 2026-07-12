@@ -8,7 +8,7 @@ final class ShareViewController: UIViewController {
 
         let rootView = ShareCaptureView(
             loadInput: { [weak self] in
-                await self?.loadInput() ?? SharedCaptureInput()
+                try await self?.loadInput() ?? SharedCaptureInput()
             },
             finish: { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: nil)
@@ -31,7 +31,7 @@ final class ShareViewController: UIViewController {
         hostingController.didMove(toParent: self)
     }
 
-    private func loadInput() async -> SharedCaptureInput {
+    private func loadInput() async throws -> SharedCaptureInput {
         guard let items = extensionContext?.inputItems as? [NSExtensionItem] else {
             return SharedCaptureInput()
         }
@@ -40,12 +40,13 @@ final class ShareViewController: UIViewController {
 
         for item in items {
             for provider in item.attachments ?? [] {
-                if let image = await provider.sharedImageCandidate() {
+                try Task.checkCancellation()
+                if let image = try await provider.sharedImageCandidate() {
                     input.images.append(image)
                 }
 
                 if input.sourceText.isEmpty {
-                    input.sourceText = await provider.firstText()
+                    input.sourceText = try await provider.firstText()
                 }
             }
         }
@@ -64,38 +65,43 @@ final class ShareViewController: UIViewController {
     }
 }
 
-struct SharedCaptureInput {
-    var images: [SharedCaptureImage] = []
-    var sourceText: String = ""
-
-    var previewImageData: Data? {
-        images.first?.data
-    }
-}
-
-struct SharedCaptureImage: Equatable {
-    var data: Data
-    var filename: String
-}
-
 private extension NSItemProvider {
-    func sharedImageCandidate() async -> SharedCaptureImage? {
+    func sharedImageCandidate() async throws -> SharedCaptureImage? {
         let identifiers = preferredImageTypeIdentifiers()
         for identifier in identifiers where hasItemConformingToTypeIdentifier(identifier) {
+            try Task.checkCancellation()
             let fallbackName = filename(for: identifier)
-            if let data = try? await loadDataRepresentation(forTypeIdentifier: identifier),
-               UIImage(data: data) != nil {
-                return SharedCaptureImage(data: data, filename: fallbackName)
+            do {
+                let data = try await cancellableDataRepresentation(forTypeIdentifier: identifier)
+                if UIImage(data: data) != nil {
+                    return SharedCaptureImage(data: data, filename: fallbackName)
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // Try the provider's next representation.
             }
 
-            if let file = try? await loadFileDataRepresentation(forTypeIdentifier: identifier),
-               UIImage(data: file.data) != nil {
-                return SharedCaptureImage(data: file.data, filename: file.filename ?? fallbackName)
+            do {
+                let file = try await cancellableFileDataRepresentation(forTypeIdentifier: identifier)
+                if UIImage(data: file.data) != nil {
+                    return SharedCaptureImage(data: file.data, filename: file.filename ?? fallbackName)
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // Try the provider's next representation.
             }
 
-            if let item = try? await loadItem(forTypeIdentifier: identifier),
-               let image = imageCandidate(from: item, fallbackFilename: fallbackName) {
-                return image
+            do {
+                let item = try await cancellableItem(forTypeIdentifier: identifier)
+                if let image = imageCandidate(from: item, fallbackFilename: fallbackName) {
+                    return image
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // Try the provider's next registered image type.
             }
         }
         return nil
@@ -158,6 +164,13 @@ private extension NSItemProvider {
     }
 
     func imageCandidate(from url: URL, fallbackFilename: String) -> SharedCaptureImage? {
+        let accessedSecurityScope = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessedSecurityScope {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
         guard let data = try? Data(contentsOf: url), UIImage(data: data) != nil else {
             return nil
         }
@@ -166,66 +179,206 @@ private extension NSItemProvider {
         return SharedCaptureImage(data: data, filename: filename)
     }
 
-    func firstText() async -> String {
-        if hasItemConformingToTypeIdentifier(UTType.url.identifier),
-           let url = try? await loadItem(forTypeIdentifier: UTType.url.identifier) as? URL,
-           !url.isFileURL {
-            return url.absoluteString
+    func firstText() async throws -> String {
+        try Task.checkCancellation()
+        if hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+            do {
+                let url = try await cancellableURL()
+                if !url.isFileURL {
+                    return url.absoluteString
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // Fall through to plain text.
+            }
         }
 
-        if hasItemConformingToTypeIdentifier(UTType.plainText.identifier),
-           let text = try? await loadItem(forTypeIdentifier: UTType.plainText.identifier) as? String {
-            return text
+        if hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+            do {
+                return try await cancellableString()
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                return ""
+            }
         }
 
         return ""
     }
 
-    func loadDataRepresentation(forTypeIdentifier typeIdentifier: String) async throws -> Data {
-        try await withCheckedThrowingContinuation { continuation in
-            loadDataRepresentation(forTypeIdentifier: typeIdentifier) { data, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let data {
-                    continuation.resume(returning: data)
-                } else {
-                    continuation.resume(throwing: CocoaError(.fileReadUnknown))
-                }
-            }
-        }
-    }
-
-    func loadFileDataRepresentation(forTypeIdentifier typeIdentifier: String) async throws -> (data: Data, filename: String?) {
-        try await withCheckedThrowingContinuation { continuation in
-            loadFileRepresentation(forTypeIdentifier: typeIdentifier) { url, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let url {
-                    do {
-                        let data = try Data(contentsOf: url)
-                        let filename = url.lastPathComponent.isEmpty ? nil : url.lastPathComponent
-                        continuation.resume(returning: (data, filename))
-                    } catch {
+    func cancellableDataRepresentation(forTypeIdentifier typeIdentifier: String) async throws -> Data {
+        let cancellation = ProgressCancellationController()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let progress = loadDataRepresentation(forTypeIdentifier: typeIdentifier) { data, error in
+                    if let error {
                         continuation.resume(throwing: error)
+                    } else if let data {
+                        continuation.resume(returning: data)
+                    } else {
+                        continuation.resume(throwing: CocoaError(.fileReadUnknown))
                     }
-                } else {
-                    continuation.resume(throwing: CocoaError(.fileReadUnknown))
                 }
+                cancellation.install(progress)
             }
+        } onCancel: {
+            cancellation.cancel()
         }
     }
 
-    func loadItem(forTypeIdentifier typeIdentifier: String) async throws -> NSSecureCoding {
-        try await withCheckedThrowingContinuation { continuation in
-            loadItem(forTypeIdentifier: typeIdentifier, options: nil) { item, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let item {
-                    continuation.resume(returning: item)
-                } else {
-                    continuation.resume(throwing: CocoaError(.fileReadUnknown))
+    func cancellableFileDataRepresentation(forTypeIdentifier typeIdentifier: String) async throws -> (data: Data, filename: String?) {
+        let cancellation = ProgressCancellationController()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let progress = loadFileRepresentation(forTypeIdentifier: typeIdentifier) { url, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if let url {
+                        let accessedSecurityScope = url.startAccessingSecurityScopedResource()
+                        defer {
+                            if accessedSecurityScope {
+                                url.stopAccessingSecurityScopedResource()
+                            }
+                        }
+                        do {
+                            let data = try Data(contentsOf: url)
+                            let filename = url.lastPathComponent.isEmpty ? nil : url.lastPathComponent
+                            continuation.resume(returning: (data, filename))
+                        } catch {
+                            continuation.resume(throwing: error)
+                        }
+                    } else {
+                        continuation.resume(throwing: CocoaError(.fileReadUnknown))
+                    }
+                }
+                cancellation.install(progress)
+            }
+        } onCancel: {
+            cancellation.cancel()
+        }
+    }
+
+    func cancellableItem(forTypeIdentifier typeIdentifier: String) async throws -> NSSecureCoding {
+        let race = ItemLoadRace()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                race.install(continuation)
+                loadItem(forTypeIdentifier: typeIdentifier, options: nil) { item, error in
+                    if let error {
+                        race.resolve(.failure(error))
+                    } else if let item {
+                        race.resolve(.success(item))
+                    } else {
+                        race.resolve(.failure(CocoaError(.fileReadUnknown)))
+                    }
                 }
             }
+        } onCancel: {
+            race.resolve(.failure(CancellationError()))
         }
+    }
+
+    func cancellableURL() async throws -> URL {
+        let cancellation = ProgressCancellationController()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let progress = loadObject(ofClass: URL.self) { item, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if let item {
+                        continuation.resume(returning: item)
+                    } else {
+                        continuation.resume(throwing: CocoaError(.fileReadUnknown))
+                    }
+                }
+                cancellation.install(progress)
+            }
+        } onCancel: {
+            cancellation.cancel()
+        }
+    }
+
+    func cancellableString() async throws -> String {
+        let cancellation = ProgressCancellationController()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let progress = loadObject(ofClass: String.self) { item, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if let item {
+                        continuation.resume(returning: item)
+                    } else {
+                        continuation.resume(throwing: CocoaError(.fileReadUnknown))
+                    }
+                }
+                cancellation.install(progress)
+            }
+        } onCancel: {
+            cancellation.cancel()
+        }
+    }
+}
+
+private final class ItemLoadRace: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<NSSecureCoding, Error>?
+    private var result: Result<NSSecureCoding, Error>?
+
+    func install(_ continuation: CheckedContinuation<NSSecureCoding, Error>) {
+        let completedResult = lock.withLock { () -> Result<NSSecureCoding, Error>? in
+            if let result {
+                return result
+            }
+            self.continuation = continuation
+            return nil
+        }
+
+        if let completedResult {
+            continuation.resume(with: completedResult)
+        }
+    }
+
+    func resolve(_ result: Result<NSSecureCoding, Error>) {
+        let continuation = lock.withLock { () -> CheckedContinuation<NSSecureCoding, Error>? in
+            guard self.result == nil else {
+                return nil
+            }
+            self.result = result
+            let continuation = self.continuation
+            self.continuation = nil
+            return continuation
+        }
+        continuation?.resume(with: result)
+    }
+}
+
+private final class ProgressCancellationController: @unchecked Sendable {
+    private let lock = NSLock()
+    private var progress: Progress?
+    private var cancelled = false
+
+    func install(_ progress: Progress) {
+        let shouldCancel = lock.withLock { () -> Bool in
+            if cancelled {
+                return true
+            }
+            self.progress = progress
+            return false
+        }
+        if shouldCancel {
+            progress.cancel()
+        }
+    }
+
+    func cancel() {
+        let progress = lock.withLock { () -> Progress? in
+            guard !cancelled else {
+                return nil
+            }
+            cancelled = true
+            return self.progress
+        }
+        progress?.cancel()
     }
 }

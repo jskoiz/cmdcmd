@@ -2,6 +2,8 @@ import Foundation
 import Security
 
 struct RelaySettings: Codable, Equatable {
+    static let maximumPasteDelayMilliseconds = 60_000
+
     var token: String
     var host: String
     var port: Int
@@ -9,16 +11,6 @@ struct RelaySettings: Codable, Equatable {
     var codexBundleIdentifier: String
     var deliveryMode: RelayDeliveryMode
     var pasteDelayMilliseconds: Int
-
-    enum CodingKeys: String, CodingKey {
-        case token
-        case host
-        case port
-        case inboxDirectory
-        case codexBundleIdentifier
-        case deliveryMode
-        case pasteDelayMilliseconds
-    }
 
     static var defaultSettings: RelaySettings {
         RelaySettings(
@@ -50,15 +42,26 @@ struct RelaySettings: Codable, Equatable {
         self.pasteDelayMilliseconds = pasteDelayMilliseconds
     }
 
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        token = try container.decode(String.self, forKey: .token)
-        host = try container.decode(String.self, forKey: .host)
-        port = try container.decode(Int.self, forKey: .port)
-        inboxDirectory = try container.decode(String.self, forKey: .inboxDirectory)
-        codexBundleIdentifier = try container.decode(String.self, forKey: .codexBundleIdentifier)
-        deliveryMode = try container.decodeIfPresent(RelayDeliveryMode.self, forKey: .deliveryMode) ?? .codex
-        pasteDelayMilliseconds = try container.decode(Int.self, forKey: .pasteDelayMilliseconds)
+    func validated() throws -> RelaySettings {
+        try Self.requireNonempty(token, field: "token")
+        try Self.requireNonempty(host, field: "host")
+        try Self.requireNonempty(inboxDirectory, field: "inboxDirectory")
+        try Self.requireNonempty(codexBundleIdentifier, field: "codexBundleIdentifier")
+        guard (1...65_535).contains(port) else {
+            throw RelaySettingsError.invalid("port must be an integer from 1 to 65535.")
+        }
+        guard (0...Self.maximumPasteDelayMilliseconds).contains(pasteDelayMilliseconds) else {
+            throw RelaySettingsError.invalid(
+                "pasteDelayMilliseconds must be between 0 and \(Self.maximumPasteDelayMilliseconds)."
+            )
+        }
+        return self
+    }
+
+    private static func requireNonempty(_ value: String, field: String) throws {
+        guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw RelaySettingsError.invalid("\(field) must not be empty.")
+        }
     }
 
     var listensOnPrivateNetwork: Bool {
@@ -107,6 +110,17 @@ enum RelayDeliveryMode: String, Codable, Equatable {
     case reviewInbox
 }
 
+enum RelaySettingsError: Error, LocalizedError, Equatable {
+    case invalid(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalid(let message):
+            return "Invalid relay settings: \(message)"
+        }
+    }
+}
+
 enum FileLocations {
     static var appSupportDirectory: URL {
         if let override = ProcessInfo.processInfo.environment["CMDCMD_RELAY_APP_SUPPORT_DIR"],
@@ -131,36 +145,33 @@ enum FileLocations {
 }
 
 enum RelaySettingsStore {
-    static func load() -> RelaySettings {
-        let url = FileLocations.settingsFile
-        guard let data = try? Data(contentsOf: url) else {
+    static func loadOrCreate(from url: URL = FileLocations.settingsFile) throws -> RelaySettings {
+        guard FileManager.default.fileExists(atPath: url.path) else {
             let settings = RelaySettings.defaultSettings
-            try? save(settings)
+            try save(settings, to: url)
             return settings
         }
 
-        do {
-            return try JSONDecoder().decode(RelaySettings.self, from: data)
-        } catch {
-            let settings = RelaySettings.defaultSettings
-            try? save(settings)
-            return settings
-        }
+        let data = try Data(contentsOf: url)
+        let settings = try JSONDecoder().decode(RelaySettings.self, from: data)
+        return try settings.validated()
     }
 
-    static func save(_ settings: RelaySettings) throws {
+    static func save(_ settings: RelaySettings, to url: URL = FileLocations.settingsFile) throws {
+        _ = try settings.validated()
+        let directory = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(
-            at: FileLocations.appSupportDirectory,
+            at: directory,
             withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(settings)
-        try data.write(to: FileLocations.settingsFile, options: [.atomic])
+        try data.write(to: url, options: [.atomic])
         try? FileManager.default.setAttributes(
             [.posixPermissions: 0o600],
-            ofItemAtPath: FileLocations.settingsFile.path
+            ofItemAtPath: url.path
         )
     }
 }

@@ -17,7 +17,7 @@ struct CaptureView: View {
     @State private var imageMetadata: CaptureImageMetadata = .empty
     @State private var isSending = false
     @State private var statusText = ""
-    @State private var feedbackPhase: AppshotSendFeedbackPhase?
+    @State private var feedbackPhase: CaptureSendFeedbackPhase?
     @State private var feedbackMessage: String?
     @State private var feedbackToken = UUID()
     @State private var isShowingFailureHelp = false
@@ -215,12 +215,14 @@ struct CaptureView: View {
     @ViewBuilder
     private var feedbackOverlay: some View {
         if let feedbackPhase {
-            AppshotCaptureFeedbackView(
+            CaptureFeedbackView(
                 phase: feedbackPhase,
                 imageData: imageData,
                 message: feedbackMessage,
-                openSettings: openSettingsFromFailure,
-                settingsActionTitle: CaptureFailurePresentation.settingsActionTitle(for: feedbackMessage)
+                openSettings: feedbackPhase == .pending ? dismissPendingFeedback : openSettingsFromFailure,
+                settingsActionTitle: feedbackPhase == .pending
+                    ? "Dismiss"
+                    : CaptureFailurePresentation.settingsActionTitle(for: feedbackMessage)
             )
             .id(feedbackToken)
             .transition(.opacity)
@@ -232,7 +234,7 @@ struct CaptureView: View {
     private func sendSelectedImage() async {
         guard let imageData else {
             statusText = "Choose a screenshot first"
-            AppshotFeedback.shared.playCompletion(success: false)
+            CaptureFeedback.shared.playCompletion(success: false)
             captureViewLogger.info("send requested without selected image")
             return
         }
@@ -245,20 +247,40 @@ struct CaptureView: View {
         statusText = ""
         feedbackMessage = nil
         feedbackPhase = .sending
-        AppshotFeedback.shared.playCaptureStart()
+        CaptureFeedback.shared.playCaptureStart()
         captureViewLogger.info("ui status set preparing capture")
-        let record = await store.submit(
-            imageData: imageData,
-            filename: "screenshot.png",
-            note: "",
-            source: .mainApp,
-            imageMetadata: imageMetadata
-        )
+        let record: CaptureRecord
+        do {
+            record = try await store.submit(
+                imageData: imageData,
+                filename: "screenshot.png",
+                note: "",
+                source: .mainApp,
+                imageMetadata: imageMetadata
+            )
+        } catch is CancellationError {
+            isSending = false
+            feedbackPhase = nil
+            return
+        } catch {
+            isSending = false
+            feedbackMessage = error.localizedDescription
+            feedbackPhase = .failed
+            CaptureFeedback.shared.playCompletion(success: false)
+            return
+        }
         let didSend = record.status == .sent
         statusText = didSend ? CapturePipeline.deliveredStatusMessage : record.statusMessage
         feedbackMessage = didSend ? nil : record.statusMessage
-        feedbackPhase = didSend ? .sent : .failed
-        AppshotFeedback.shared.playCompletion(success: didSend)
+        switch record.status {
+        case .sent:
+            feedbackPhase = .sent
+        case .sending:
+            feedbackPhase = .pending
+        case .needsEndpoint, .failed:
+            feedbackPhase = .failed
+        }
+        CaptureFeedback.shared.playCompletion(success: didSend)
         isSending = false
         captureViewLogger.info(
             "send completed status=\(record.status.rawValue, privacy: .public) message=\(record.statusMessage, privacy: .public)"
@@ -283,6 +305,17 @@ struct CaptureView: View {
             openSettings()
         case .systemApp:
             isShowingFailureHelp = true
+        }
+    }
+
+    private func dismissPendingFeedback() {
+        guard feedbackPhase == .pending else {
+            return
+        }
+
+        withAnimation(.easeOut(duration: 0.18)) {
+            feedbackPhase = nil
+            feedbackMessage = nil
         }
     }
 

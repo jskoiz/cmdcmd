@@ -7,7 +7,7 @@ xcuserdata/
 .xcodebuildmcp/
 .wrangler/
 macos/CmdCmdRelay/.build/
-node_modules/
-relay/.env
-relay/inbox/
 .asc/
+*.ipa
+*.xcarchive/
+appstore/screenshots/live/

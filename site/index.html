@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>cmd+cmd — AppShots extended to your iPhone</title>
+    <title>cmd+cmd — iPhone screenshots to Codex Desktop</title>
     <meta
       name="description"
       content="Send iPhone screenshots to Codex Desktop through your paired Mac."
@@ -13,19 +13,19 @@
 
     <!-- Open Graph / Twitter -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://cmd.avmil.xyz/" />
-    <meta property="og:title" content="cmd+cmd — AppShots extended to your iPhone" />
-    <meta property="og:description" content="Run the Mac installer, scan its terminal QR on iPhone, and send screenshots to Codex Desktop." />
-    <meta property="og:image" content="https://cmd.avmil.xyz/assets/icon.png" />
+    <meta property="og:url" content="https://www.cmdcmd.click/" />
+    <meta property="og:title" content="cmd+cmd — iPhone screenshots to Codex Desktop" />
+    <meta property="og:description" content="Install cmd+cmd from the App Store, run the Mac relay installer, and send iPhone screenshots to Codex Desktop." />
+    <meta property="og:image" content="https://www.cmdcmd.click/assets/icon.png" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="cmd+cmd — AppShots extended to your iPhone" />
-    <meta name="twitter:description" content="Run the Mac installer, scan its terminal QR on iPhone, and send screenshots to Codex Desktop." />
-    <meta name="twitter:image" content="https://cmd.avmil.xyz/assets/icon.png" />
+    <meta name="twitter:title" content="cmd+cmd — iPhone screenshots to Codex Desktop" />
+    <meta name="twitter:description" content="Install cmd+cmd from the App Store, run the Mac relay installer, and send iPhone screenshots to Codex Desktop." />
+    <meta name="twitter:image" content="https://www.cmdcmd.click/assets/icon.png" />
 
     <script>document.documentElement.classList.add("js");</script>
     <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/IBMPlexMono-600.woff2" crossorigin />
     <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/IBMPlexMono-400.woff2" crossorigin />
-    <link rel="stylesheet" href="./styles.css?v=20260605-4" />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="wrap">
@@ -38,9 +38,10 @@
 
       <!-- HERO -->
       <section class="hero reveal">
-        <h1>AppShots extended to your iPhone.</h1>
+        <h1>iPhone screenshots to Codex Desktop.</h1>
         <div class="cta-row">
-          <a class="cta" href="#install">GET&nbsp;CMD+CMD <span class="arr">→</span></a>
+          <a class="cta" href="https://apps.apple.com/app/id6776976333" target="_blank" rel="noopener">APP&nbsp;STORE <span class="arr">→</span></a>
+          <a class="cta secondary" href="#install">MAC&nbsp;SETUP <span class="arr">↓</span></a>
         </div>
       </section>
 
@@ -50,7 +51,7 @@
           <div class="col-l-sticky">
             <span class="idx">[ 01 ]</span>
             <h2>Host &middot; Mac relay</h2>
-            <p class="note">Run the installer on the Mac with Codex Desktop. It starts the relay and prints a private QR.</p>
+            <p class="note">Install cmd+cmd from the App Store on iPhone, then run the Mac relay installer. It starts the relay and prints a private QR.</p>
           </div>
         </div>
         <div class="col-r">
@@ -58,307 +59,20 @@
             <li class="step">
               <span class="n">01</span>
               <div class="body">
-                <p>Run this on the Mac that has Codex Desktop open.</p>
+                <p>Run this on the Mac that has Codex Desktop open after installing cmd+cmd on your iPhone.</p>
                 <span class="cap-lbl">Terminal</span>
                 <div class="code">
-                  <pre><span class="p">$</span> curl -fsSL https://cmd.avmil.xyz/install.sh | bash<span class="cursor" aria-hidden="true"></span></pre>
-                  <button class="copy" data-copy="curl -fsSL https://cmd.avmil.xyz/install.sh | bash">Copy</button>
+                  <pre><span class="p">$</span> curl -fsSL https://www.cmdcmd.click/install.sh | bash<span class="cursor" aria-hidden="true"></span></pre>
+                  <button class="copy" data-copy="curl -fsSL https://www.cmdcmd.click/install.sh | bash">Copy</button>
                 </div>
-                <p class="aside">When the relay is ready, Terminal prints the QR for your iPhone to scan.</p>
+                <p class="aside">When the relay is ready, Terminal prints the QR for cmd+cmd on iPhone to scan.</p>
                 <p class="aside">Prefer to inspect first?</p>
                 <div class="code">
-                  <pre><span class="p">$</span> curl -fsSL https://cmd.avmil.xyz/install.sh -o install.sh
+                  <pre><span class="p">$</span> curl -fsSL https://www.cmdcmd.click/install.sh -o install.sh
 <span class="p">$</span> less install.sh</pre>
-                  <button class="copy" data-copy="curl -fsSL https://cmd.avmil.xyz/install.sh -o install.sh&#10;less install.sh">Copy</button>
+                  <button class="copy" data-copy="curl -fsSL https://www.cmdcmd.click/install.sh -o install.sh&#10;less install.sh">Copy</button>
                 </div>
                 <p class="aside">Then run <span class="hl">bash install.sh</span>.</p>
-                <details class="disclosure">
-                  <summary>Inspect the install script</summary>
-                  <div class="code code-scroll">
-                    <pre>#!/usr/bin/env bash
-set -euo pipefail
-
-APP_NAME=&quot;cmd+cmd Relay.app&quot;
-INSTALL_DIR=&quot;${INSTALL_DIR:-$HOME/Library/Application Support/cmdcmd-relay}&quot;
-APP_PATH=&quot;$INSTALL_DIR/$APP_NAME&quot;
-RELAY_EXECUTABLE=&quot;$APP_PATH/Contents/MacOS/CmdCmdRelayApp&quot;
-LAUNCH_AGENT_LABEL=&quot;app.cmdcmd.relay&quot;
-LAUNCH_AGENT_PLIST=&quot;$HOME/Library/LaunchAgents/$LAUNCH_AGENT_LABEL.plist&quot;
-LOG_DIR=&quot;$HOME/Library/Logs&quot;
-OUT_LOG=&quot;$LOG_DIR/cmdcmd-relay.log&quot;
-ERR_LOG=&quot;$LOG_DIR/cmdcmd-relay.err.log&quot;
-RELAY_HEALTH_URL=&quot;http://127.0.0.1:8787/healthz&quot;
-RELEASE_BASE_URL=&quot;${CMDCMD_RELAY_RELEASE_URL:-https://cmd.avmil.xyz/dl}&quot;
-ARCHIVE_NAME=&quot;${CMDCMD_RELAY_ARCHIVE_NAME:-CmdCmdRelay-macOS-20260605-6.zip}&quot;
-REVIEW_MODE=&quot;0&quot;
-SCRIPT_SOURCE=&quot;${BASH_SOURCE[0]:-}&quot;
-if [[ -n &quot;$SCRIPT_SOURCE&quot; &amp;&amp; &quot;$SCRIPT_SOURCE&quot; != bash ]]; then
-  ROOT_DIR=&quot;$(cd &quot;$(dirname &quot;$SCRIPT_SOURCE&quot;)/..&quot; &amp;&amp; pwd)&quot;
-else
-  ROOT_DIR=&quot;$(pwd)&quot;
-fi
-LOCAL_ARCHIVE=&quot;$ROOT_DIR/dist/cmdcmd-relay/$ARCHIVE_NAME&quot;
-TMP_DIR=&quot;$(mktemp -d)&quot;
-
-cleanup() {
-  rm -rf &quot;$TMP_DIR&quot;
-}
-trap cleanup EXIT
-
-usage() {
-  cat &lt;&lt;&#x27;USAGE&#x27;
-Usage: install.sh [--review-mode]
-
-Installs the cmd+cmd Relay bundle, starts the private background relay, waits
-until it is ready, and prints a QR code for the iOS app to scan.
-
-Options:
-  --review-mode               Save screenshots to a local Review Inbox instead
-                              of sending them to Codex Desktop.
-
-Environment:
-  INSTALL_DIR                 Override destination bundle directory.
-  CMDCMD_RELAY_RELEASE_URL    Override release download base URL.
-  CMDCMD_RELAY_REVIEW_MODE    Set to 1 to enable review mode.
-USAGE
-}
-
-case &quot;${CMDCMD_RELAY_REVIEW_MODE:-0}&quot; in
-  1|true|TRUE|yes|YES)
-    REVIEW_MODE=&quot;1&quot;
-    ;;
-esac
-
-for arg in &quot;$@&quot;; do
-  case &quot;$arg&quot; in
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    --review-mode)
-      REVIEW_MODE=&quot;1&quot;
-      ;;
-    *)
-      echo &quot;Unknown argument: $arg&quot; &gt;&amp;2
-      usage
-      exit 64
-      ;;
-  esac
-done
-
-download_archive() {
-  local archive=&quot;$TMP_DIR/$ARCHIVE_NAME&quot;
-  local checksum=&quot;$TMP_DIR/$ARCHIVE_NAME.sha256&quot;
-
-  if [[ -f &quot;$LOCAL_ARCHIVE&quot; ]]; then
-    cp &quot;$LOCAL_ARCHIVE&quot; &quot;$archive&quot;
-    if [[ -f &quot;$LOCAL_ARCHIVE.sha256&quot; ]]; then
-      cp &quot;$LOCAL_ARCHIVE.sha256&quot; &quot;$checksum&quot;
-    fi
-  else
-    curl -fsSL &quot;$RELEASE_BASE_URL/$ARCHIVE_NAME&quot; -o &quot;$archive&quot;
-    curl -fsSL &quot;$RELEASE_BASE_URL/$ARCHIVE_NAME.sha256&quot; -o &quot;$checksum&quot; || true
-  fi
-
-  if [[ -f &quot;$checksum&quot; ]]; then
-    local expected
-    local actual
-    expected=&quot;$(awk &#x27;{print $1}&#x27; &quot;$checksum&quot;)&quot;
-    actual=&quot;$(shasum -a 256 &quot;$archive&quot; | awk &#x27;{print $1}&#x27;)&quot;
-    if [[ &quot;$expected&quot; != &quot;$actual&quot; ]]; then
-      echo &quot;Checksum mismatch for $ARCHIVE_NAME&quot; &gt;&amp;2
-      exit 1
-    fi
-  fi
-
-  echo &quot;$archive&quot;
-}
-
-stop_existing_relay() {
-  local pids
-  local native_pids
-  local legacy_pids
-  launchctl bootout &quot;gui/$(id -u)&quot; &quot;$LAUNCH_AGENT_PLIST&quot; &gt;/dev/null 2&gt;&amp;1 || true
-  pids=&quot;$(pgrep -f &quot;cmd\\+cmd Relay\\.app/Contents/MacOS/CmdCmdRelayApp&quot; || true)&quot;
-  if [[ -n &quot;$pids&quot; ]]; then
-    kill $pids &gt;/dev/null 2&gt;&amp;1 || true
-  fi
-  native_pids=&quot;$(pgrep -f &quot;CmdCmdRelayApp --serve&quot; || true)&quot;
-  if [[ -n &quot;$native_pids&quot; ]]; then
-    kill $native_pids &gt;/dev/null 2&gt;&amp;1 || true
-  fi
-  legacy_pids=&quot;$(ps ax -o pid=,command= | awk &#x27;/\/(CodexShot|CmdCmd)\/relay\/src\/index\.js/ {print $1}&#x27; || true)&quot;
-  if [[ -n &quot;$legacy_pids&quot; ]]; then
-    kill $legacy_pids &gt;/dev/null 2&gt;&amp;1 || true
-  fi
-}
-
-wait_for_existing_relay_to_stop() {
-  for _ in {1..40}; do
-    if ! pgrep -f &quot;CmdCmdRelayApp --serve&quot; &gt;/dev/null 2&gt;&amp;1; then
-      return 0
-    fi
-    sleep 0.25
-  done
-
-  echo &quot;Existing cmd+cmd Relay process did not stop.&quot; &gt;&amp;2
-  pgrep -af &quot;CmdCmdRelayApp --serve&quot; &gt;&amp;2 || true
-  exit 1
-}
-
-prepare_pairing() {
-  if [[ ! -x &quot;$RELAY_EXECUTABLE&quot; ]]; then
-    echo &quot;Could not find relay executable.&quot; &gt;&amp;2
-    exit 1
-  fi
-
-  if [[ &quot;$REVIEW_MODE&quot; == &quot;1&quot; ]]; then
-    &quot;$RELAY_EXECUTABLE&quot; --prepare-review-pairing
-  else
-    &quot;$RELAY_EXECUTABLE&quot; --prepare-pairing
-  fi
-  RELAY_HEALTH_URL=&quot;$(&quot;$RELAY_EXECUTABLE&quot; --print-health-url)&quot;
-}
-
-start_background_relay() {
-  mkdir -p &quot;$LOG_DIR&quot;
-  &quot;$RELAY_EXECUTABLE&quot; --serve-detached &gt;&gt;&quot;$OUT_LOG&quot; 2&gt;&gt;&quot;$ERR_LOG&quot;
-}
-
-wait_for_relay() {
-  for _ in {1..40}; do
-    if curl -fsS &quot;$RELAY_HEALTH_URL&quot; 2&gt;/dev/null | grep -q &quot;cmdcmd-native&quot;; then
-      return 0
-    fi
-    sleep 0.25
-  done
-
-  echo &quot;Relay did not become reachable on $RELAY_HEALTH_URL.&quot; &gt;&amp;2
-  echo &quot;Recent relay log:&quot; &gt;&amp;2
-  if [[ -f &quot;$ERR_LOG&quot; ]]; then
-    tail -n 20 &quot;$ERR_LOG&quot; &gt;&amp;2 || true
-  else
-    echo &quot;No error log yet at $ERR_LOG&quot; &gt;&amp;2
-  fi
-  exit 1
-}
-
-verify_relay_identity() {
-  local health
-  local escaped_executable
-  health=&quot;$(curl -fsS &quot;$RELAY_HEALTH_URL&quot; 2&gt;/dev/null || true)&quot;
-  escaped_executable=&quot;${RELAY_EXECUTABLE//\//\\/}&quot;
-  if [[ &quot;$health&quot; == *&quot;\&quot;executablePath\&quot;:\&quot;$RELAY_EXECUTABLE\&quot;&quot;* ]] ||
-     [[ &quot;$health&quot; == *&quot;\&quot;executablePath\&quot;:\&quot;$escaped_executable\&quot;&quot;* ]]; then
-    return 0
-  fi
-
-  echo &quot;Relay health check is not served by the installed relay.&quot; &gt;&amp;2
-  echo &quot;Expected: $RELAY_EXECUTABLE&quot; &gt;&amp;2
-  echo &quot;Health: ${health:-unreachable}&quot; &gt;&amp;2
-  exit 1
-}
-
-wait_for_relay_accessibility() {
-  if [[ &quot;$REVIEW_MODE&quot; == &quot;1&quot; ]]; then
-    return 0
-  fi
-
-  for _ in {1..60}; do
-    if curl -fsS &quot;$RELAY_HEALTH_URL&quot; 2&gt;/dev/null | grep -q &#x27;&quot;accessibility&quot;:&quot;granted&quot;&#x27;; then
-      return 0
-    fi
-    sleep 0.5
-  done
-
-  echo &quot;Accessibility is still not available to cmd+cmd Relay.&quot; &gt;&amp;2
-  echo &quot;If the row is already enabled in System Settings, remove cmd+cmd Relay with the minus button, rerun this installer, and approve it again.&quot; &gt;&amp;2
-  echo &quot;Installed relay: $APP_PATH&quot; &gt;&amp;2
-  exit 1
-}
-
-request_accessibility() {
-  if [[ &quot;$REVIEW_MODE&quot; == &quot;1&quot; ]]; then
-    echo &quot;Review mode enabled. Codex Desktop and Accessibility are not required.&quot;
-    return
-  fi
-
-  if &quot;$RELAY_EXECUTABLE&quot; --accessibility-status &gt;/dev/null 2&gt;&amp;1; then
-    echo &quot;Accessibility permission already granted.&quot;
-    return
-  fi
-
-  echo &quot;Requesting Accessibility permission for screenshot delivery...&quot;
-  &quot;$RELAY_EXECUTABLE&quot; --request-accessibility || true
-}
-
-print_pairing_qr() {
-  if [[ ! -x &quot;$RELAY_EXECUTABLE&quot; ]]; then
-    echo &quot;Could not find relay executable for pairing QR.&quot; &gt;&amp;2
-    exit 1
-  fi
-
-  &quot;$RELAY_EXECUTABLE&quot; --print-pairing-qr
-}
-
-ARCHIVE=&quot;$(download_archive)&quot;
-ditto -x -k &quot;$ARCHIVE&quot; &quot;$TMP_DIR/unpacked&quot;
-
-FOUND_APP=&quot;$(find &quot;$TMP_DIR/unpacked&quot; -maxdepth 2 -name &quot;$APP_NAME&quot; -type d | head -n 1)&quot;
-if [[ -z &quot;$FOUND_APP&quot; ]]; then
-  echo &quot;Could not find relay bundle in archive.&quot; &gt;&amp;2
-  exit 1
-fi
-
-stop_existing_relay
-wait_for_existing_relay_to_stop
-
-mkdir -p &quot;$INSTALL_DIR&quot;
-rm -rf &quot;$APP_PATH&quot;
-ditto &quot;$FOUND_APP&quot; &quot;$APP_PATH&quot;
-
-if codesign --verify --deep --strict &quot;$APP_PATH&quot; &gt;/dev/null 2&gt;&amp;1; then
-  echo &quot;Signature verified.&quot;
-else
-  echo &quot;Installed bundle signature verification failed.&quot; &gt;&amp;2
-  exit 1
-fi
-
-prepare_pairing
-request_accessibility
-start_background_relay
-wait_for_relay
-verify_relay_identity
-wait_for_relay_accessibility
-print_pairing_qr
-
-if [[ &quot;$REVIEW_MODE&quot; == &quot;1&quot; ]]; then
-  cat &lt;&lt;EOF
-Installed: $APP_PATH
-Background process: CmdCmdRelayApp
-Logs: $ERR_LOG
-
-Next:
-1. Open cmd+cmd on iPhone.
-2. In Settings, tap Scan Desktop QR and scan the QR above.
-3. Send a screenshot. This Mac opens the local Review Inbox.
-EOF
-else
-  cat &lt;&lt;EOF
-Installed: $APP_PATH
-Background process: CmdCmdRelayApp
-Logs: $ERR_LOG
-
-Next:
-1. Open cmd+cmd on iPhone.
-2. In Settings, tap Scan Desktop QR and scan the QR above.
-3. Send screenshots to Codex Desktop.
-EOF
-fi
-</pre>
-                    <button class="copy" data-copy-pre>Copy</button>
-                  </div>
-                </details>
               </div>
             </li>
             <li class="step">
@@ -383,14 +97,14 @@ fi
           <div class="col-l-sticky">
             <span class="idx">[ 02 ]</span>
             <h2>Phone &middot; Pair &amp; send</h2>
-            <p class="note">Open cmd+cmd, scan the terminal QR, then send from your phone.</p>
+            <p class="note">Open the App Store version of cmd+cmd, scan the terminal QR, then send from your phone.</p>
           </div>
         </div>
         <div class="col-r">
           <ol class="steps">
             <li class="step">
               <span class="n">01</span>
-              <div class="body"><p>Install and open <b>cmd+cmd</b> on iPhone.</p></div>
+              <div class="body"><p>Install <a class="inline-link" href="https://apps.apple.com/app/id6776976333" target="_blank" rel="noopener"><b>cmd+cmd</b> from the App Store</a>, then open it on iPhone.</p></div>
             </li>
             <li class="step">
               <span class="n">02</span>
@@ -422,6 +136,7 @@ fi
         <span class="tick br" aria-hidden="true"></span>
         <div class="links">
           <a href="./privacy">Privacy</a>
+          <a href="https://github.com/jskoiz/cmdcmd" target="_blank" rel="noopener">GitHub</a>
           <a href="https://x.com/jskoiz" target="_blank" rel="noopener">Made&nbsp;by&nbsp;@jskoiz</a>
         </div>
       </footer>
@@ -430,13 +145,7 @@ fi
     <script>
       document.querySelectorAll(".copy").forEach(function (btn) {
         btn.addEventListener("click", function () {
-          var text;
-          if (btn.hasAttribute("data-copy-pre")) {
-            var pre = btn.parentNode.querySelector("pre");
-            text = pre ? pre.textContent : "";
-          } else {
-            text = btn.getAttribute("data-copy") || "";
-          }
+          var text = btn.getAttribute("data-copy") || "";
           navigator.clipboard.writeText(text).then(function () {
             var prev = btn.textContent;
             btn.textContent = "Copied";

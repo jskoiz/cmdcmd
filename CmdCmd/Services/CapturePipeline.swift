@@ -14,27 +14,44 @@ enum CapturePipeline {
         source: CaptureSource,
         sourceDetail: String = "",
         imageMetadata: CaptureImageMetadata = .empty
-    ) async -> CaptureRecord {
+    ) async throws -> CaptureRecord {
         let startedAt = Date()
         let settings = CaptureRepository.loadSettings()
         let endpointHost = URL(string: settings.endpoint)?.host()
-        let originalPixelSize = ImageProcessor.pixelSize(for: originalImageData)
         capturePipelineLogger.info(
             "submit started source=\(source.rawValue, privacy: .public) originalBytes=\(originalImageData.count, privacy: .public) endpointHost=\(endpointHost ?? "none", privacy: .public) includeOCR=\(settings.includeRecognizedText, privacy: .public) noteChars=\(note.count, privacy: .public)"
         )
 
-        let uploadData = ImageProcessor.normalizedUploadData(from: originalImageData)
-        let uploadPixelSize = ImageProcessor.pixelSize(for: uploadData)
-        let uploadMimeType = ImageProcessor.mimeType(for: uploadData, filename: filename)
+        let preparedImage: PreparedImage
+        do {
+            preparedImage = try ImageProcessor.prepare(data: originalImageData, filename: filename)
+        } catch {
+            let record = CaptureRecord(
+                source: source,
+                sourceDetail: sourceDetail,
+                userNote: note,
+                recognizedText: "",
+                status: .failed,
+                statusMessage: error.localizedDescription,
+                endpointHost: endpointHost,
+                imageFilename: filename,
+                thumbnailData: nil
+            )
+            CaptureRepository.upsert(record)
+            capturePipelineLogger.error(
+                "image preparation failed captureId=\(record.id.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
+            return record
+        }
         capturePipelineLogger.info(
-            "image normalized uploadBytes=\(uploadData.count, privacy: .public) elapsedMs=\(elapsedMilliseconds(since: startedAt), privacy: .public)"
+            "image prepared uploadBytes=\(preparedImage.data.count, privacy: .public) elapsedMs=\(elapsedMilliseconds(since: startedAt), privacy: .public)"
         )
 
         let ocrReport: OCRReport
         if settings.includeRecognizedText {
             let ocrStartedAt = Date()
-            capturePipelineLogger.info("ocr started uploadBytes=\(uploadData.count, privacy: .public)")
-            ocrReport = await OCRService.report(from: uploadData)
+            capturePipelineLogger.info("ocr started uploadBytes=\(preparedImage.data.count, privacy: .public)")
+            ocrReport = try await OCRService.report(from: preparedImage.data)
             capturePipelineLogger.info(
                 "ocr finished recognizedTextChars=\(ocrReport.characterCount, privacy: .public) lines=\(ocrReport.lineCount, privacy: .public) durationMs=\(elapsedMilliseconds(since: ocrStartedAt), privacy: .public)"
             )
@@ -48,8 +65,6 @@ enum CapturePipeline {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
-        let pixelWidth = imageMetadata.pixelWidth ?? originalPixelSize?.width ?? uploadPixelSize?.width
-        let pixelHeight = imageMetadata.pixelHeight ?? originalPixelSize?.height ?? uploadPixelSize?.height
         let visibleApp = VisibleAppInferer.infer(from: recognizedText)
         let screenshotContext = ScreenshotContext(
             capturedAt: imageMetadata.capturedAt,
@@ -57,12 +72,12 @@ enum CapturePipeline {
             timeZoneIdentifier: TimeZone.current.identifier,
             source: source.rawValue,
             sourceDetail: sourceDetail,
-            imageFilename: filename,
-            imageMimeType: uploadMimeType,
-            pixelWidth: pixelWidth,
-            pixelHeight: pixelHeight,
+            imageFilename: preparedImage.filename,
+            imageMimeType: preparedImage.mimeType,
+            pixelWidth: preparedImage.pixelWidth,
+            pixelHeight: preparedImage.pixelHeight,
             originalImageBytes: originalImageData.count,
-            uploadImageBytes: uploadData.count,
+            uploadImageBytes: preparedImage.data.count,
             ocrEnabled: settings.includeRecognizedText,
             ocrDurationMs: settings.includeRecognizedText ? ocrReport.durationMs : nil,
             ocrLineCount: ocrReport.lineCount,
@@ -80,8 +95,8 @@ enum CapturePipeline {
             status: .sending,
             statusMessage: "Preparing upload",
             endpointHost: endpointHost,
-            imageFilename: filename,
-            thumbnailData: ImageProcessor.thumbnailData(from: originalImageData)
+            imageFilename: preparedImage.filename,
+            thumbnailData: preparedImage.thumbnailData
         )
         CaptureRepository.upsert(record)
         capturePipelineLogger.info(
@@ -97,9 +112,9 @@ enum CapturePipeline {
             screenshotContext: screenshotContext,
             context: context,
             recognizedText: recognizedText,
-            imageFilename: filename,
-            imageMimeType: uploadMimeType,
-            imageBase64: uploadData.base64EncodedString()
+            imageFilename: preparedImage.filename,
+            imageMimeType: preparedImage.mimeType,
+            imageBase64: preparedImage.data.base64EncodedString()
         )
 
         do {
@@ -119,20 +134,24 @@ enum CapturePipeline {
                     if deliveryStatus.isTerminal {
                         applyDeliveryStatus(deliveryStatus, to: &record, fallbackQueuedMessage: queuedMessage())
                     } else {
-                        record.status = .failed
+                        record.status = .sending
                         record.statusMessage = unconfirmedDeliveryMessage()
                     }
                 } else {
-                    record.status = .failed
+                    record.status = .sending
                     record.statusMessage = unconfirmedDeliveryMessage()
                 }
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 capturePipelineLogger.error(
                     "delivery status polling failed captureId=\(record.id.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
                 )
-                record.status = .failed
+                record.status = .sending
                 record.statusMessage = unconfirmedDeliveryMessage()
             }
+        } catch is CancellationError {
+            throw CancellationError()
         } catch RelayClientError.missingEndpoint {
             record.status = .needsEndpoint
             record.statusMessage = RelayClientError.missingEndpoint.localizedDescription
@@ -165,7 +184,7 @@ enum CapturePipeline {
     }
 
     private static func unconfirmedDeliveryMessage() -> String {
-        "Screenshot reached the relay, but delivery to Codex wasn't confirmed. Check Codex Desktop, then try again."
+        "Screenshot reached the relay, but delivery to Codex wasn't confirmed. Check Codex Desktop for the screenshot."
     }
 
     private static func userFacingFailureMessage(for error: Error, settings: RelaySettings) -> String {

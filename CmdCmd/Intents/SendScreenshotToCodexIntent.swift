@@ -19,7 +19,7 @@ struct SendScreenshotToCodexIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let data = try await screenshot.data(contentType: .image)
-        let record = await CapturePipeline.submit(
+        let record = try await CapturePipeline.submit(
             imageData: data,
             filename: screenshot.filename.isEmpty ? "screenshot.png" : screenshot.filename,
             note: context,
@@ -42,7 +42,7 @@ struct SendLatestScreenshotToCodexIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         do {
             let screenshot = try await LatestScreenshotProvider.loadLatestScreenshot()
-            let record = await CapturePipeline.submit(
+            let record = try await CapturePipeline.submit(
                 imageData: screenshot.data,
                 filename: screenshot.filename,
                 note: context,
@@ -52,6 +52,8 @@ struct SendLatestScreenshotToCodexIntent: AppIntent {
             )
 
             return .result(dialog: IntentDialog(stringLiteral: record.statusMessage))
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             return .result(dialog: IntentDialog(stringLiteral: error.localizedDescription))
         }
