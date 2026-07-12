@@ -96,6 +96,45 @@ final class CmdCmdCoreTests: XCTestCase {
         XCTAssertTrue(probe.finished)
     }
 
+    func testRelayUploadRequestHasFiniteDeadline() throws {
+        let client = RelayClient(
+            settings: relaySettings,
+            sendRequestTimeoutSeconds: 12.5
+        )
+
+        let request = try client.uploadRequest(for: relayPayload)
+
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.timeoutInterval, 12.5)
+        XCTAssertTrue(request.timeoutInterval.isFinite)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        XCTAssertNotNil(request.httpBody)
+    }
+
+    func testRelayStatusRequestIsBoundedByRequestAndOverallDeadlines() {
+        let client = RelayClient(
+            settings: relaySettings,
+            statusRequestTimeoutSeconds: 5
+        )
+        let statusURL = URL(string: "http://192.168.1.2:8787/v1/captures/id/status")!
+
+        let requestLimited = client.deliveryStatusRequest(
+            from: statusURL,
+            remainingTime: 30
+        )
+        let deadlineLimited = client.deliveryStatusRequest(
+            from: statusURL,
+            remainingTime: 1.25
+        )
+
+        XCTAssertEqual(requestLimited.httpMethod, "GET")
+        XCTAssertEqual(requestLimited.timeoutInterval, 5)
+        XCTAssertTrue(requestLimited.timeoutInterval.isFinite)
+        XCTAssertEqual(deadlineLimited.timeoutInterval, 1.25)
+        XCTAssertEqual(deadlineLimited.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+    }
+
     func testShareRetryReloadsAfterLoadFailure() async {
         var loadAttempts = 0
         let image = SharedCaptureImage(data: Data([0x01]), filename: "one.png")
@@ -265,6 +304,50 @@ final class CmdCmdCoreTests: XCTestCase {
             endpointHost: nil,
             imageFilename: filename,
             thumbnailData: nil
+        )
+    }
+
+    private var relaySettings: RelaySettings {
+        RelaySettings(
+            endpoint: "http://192.168.1.2:8787/v1/captures",
+            apiToken: "token",
+            defaultContext: "",
+            includeRecognizedText: false
+        )
+    }
+
+    private var relayPayload: CaptureUploadPayload {
+        CaptureUploadPayload(
+            schemaVersion: 2,
+            captureId: UUID(uuidString: "AD734B9A-5D93-4D23-819E-F0BE8EE0A196")!,
+            createdAt: Date(timeIntervalSince1970: 0),
+            source: CaptureSource.mainApp.rawValue,
+            sourceDetail: "",
+            screenshotContext: ScreenshotContext(
+                capturedAt: nil,
+                preparedAt: Date(timeIntervalSince1970: 0),
+                timeZoneIdentifier: "UTC",
+                source: CaptureSource.mainApp.rawValue,
+                sourceDetail: "",
+                imageFilename: "capture.png",
+                imageMimeType: "image/png",
+                pixelWidth: 1,
+                pixelHeight: 1,
+                originalImageBytes: 1,
+                uploadImageBytes: 1,
+                ocrEnabled: false,
+                ocrDurationMs: nil,
+                ocrLineCount: 0,
+                ocrCharacterCount: 0,
+                ocrTimedOut: false,
+                ocrAverageConfidence: nil,
+                visibleApp: nil
+            ),
+            context: "",
+            recognizedText: "",
+            imageFilename: "capture.png",
+            imageMimeType: "image/png",
+            imageBase64: "AA=="
         )
     }
 

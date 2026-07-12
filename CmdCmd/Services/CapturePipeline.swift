@@ -190,7 +190,13 @@ enum CapturePipeline {
     private static func userFacingFailureMessage(for error: Error, settings: RelaySettings) -> String {
         let nsError = error as NSError
         if nsError.domain == NSURLErrorDomain,
-           nsError.code == NSURLErrorNotConnectedToInternet,
+           [
+               NSURLErrorTimedOut,
+               NSURLErrorCannotFindHost,
+               NSURLErrorCannotConnectToHost,
+               NSURLErrorNetworkConnectionLost,
+               NSURLErrorNotConnectedToInternet
+           ].contains(nsError.code),
            endpointUsesLocalNetwork(settings.endpoint) {
             return CaptureFailurePresentation.relayReachabilityMessage(endpoint: settings.endpoint)
         }

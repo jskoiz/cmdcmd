@@ -4,6 +4,9 @@
 
 - `CmdCmd/` and `ShareExtension/` are the iOS product.
 - `macos/CmdCmdRelay/` is the only supported relay implementation.
+- The installed relay is supervised by the per-user `app.cmdcmd.relay`
+  LaunchAgent. Keep `RunAtLoad`, `KeepAlive`, and the direct `--serve` command;
+  do not restore one-shot detached startup.
 - `site/` is the public setup and privacy site. The canonical public origin is
   `https://www.cmdcmd.click`.
 - Prefer the current contract. Do not add compatibility aliases, bridge routes,

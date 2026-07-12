@@ -23,6 +23,10 @@ cmd+cmd is an independent companion utility and is not affiliated with OpenAI.
 4. Grant Accessibility permission when macOS asks so the relay can attach files
    to the visible Codex Desktop composer.
 
+The installer registers a per-user LaunchAgent so the relay starts at login and
+automatically restarts if it exits. Its logs are written to
+`~/Library/Logs/cmdcmd-relay.log` and `~/Library/Logs/cmdcmd-relay.err.log`.
+
 The relay uses a private per-user token. Do not expose it on a shared or public
 network.
 

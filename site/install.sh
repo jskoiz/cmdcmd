@@ -6,7 +6,10 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/Library/Application Support/cmdcmd-relay}"
 APP_PATH="$INSTALL_DIR/$APP_NAME"
 RELAY_EXECUTABLE="$APP_PATH/Contents/MacOS/CmdCmdRelayApp"
 LAUNCH_AGENT_LABEL="app.cmdcmd.relay"
-LAUNCH_AGENT_PLIST="$HOME/Library/LaunchAgents/$LAUNCH_AGENT_LABEL.plist"
+LAUNCH_AGENT_DIR="$HOME/Library/LaunchAgents"
+LAUNCH_AGENT_PLIST="$LAUNCH_AGENT_DIR/$LAUNCH_AGENT_LABEL.plist"
+LAUNCH_AGENT_DOMAIN="gui/$(id -u)"
+LAUNCH_AGENT_TARGET="$LAUNCH_AGENT_DOMAIN/$LAUNCH_AGENT_LABEL"
 LOG_DIR="$HOME/Library/Logs"
 OUT_LOG="$LOG_DIR/cmdcmd-relay.log"
 ERR_LOG="$LOG_DIR/cmdcmd-relay.err.log"
@@ -24,8 +27,12 @@ else
 fi
 LOCAL_ARCHIVE="$ROOT_DIR/dist/cmdcmd-relay/$LOCAL_ARCHIVE_NAME"
 TMP_DIR="$(mktemp -d)"
+STAGED_LAUNCH_AGENT=""
 
 cleanup() {
+  if [[ -n "$STAGED_LAUNCH_AGENT" ]]; then
+    rm -f "$STAGED_LAUNCH_AGENT"
+  fi
   rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
@@ -104,7 +111,7 @@ download_archive() {
 }
 
 stop_existing_relay() {
-  launchctl bootout "gui/$(id -u)" "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
+  launchctl bootout "$LAUNCH_AGENT_TARGET" >/dev/null 2>&1 || true
   pkill -f "cmd\\+cmd Relay\\.app/Contents/MacOS/CmdCmdRelayApp" >/dev/null 2>&1 || true
   pkill -f "CmdCmdRelayApp --serve" >/dev/null 2>&1 || true
 }
@@ -136,9 +143,62 @@ prepare_pairing() {
   RELAY_HEALTH_URL="$("$RELAY_EXECUTABLE" --print-health-url)"
 }
 
+xml_escape() {
+  sed \
+    -e 's/&/\&amp;/g' \
+    -e 's/</\&lt;/g' \
+    -e 's/>/\&gt;/g' \
+    -e 's/"/\&quot;/g' \
+    -e "s/'/\&apos;/g"
+}
+
+install_launch_agent() {
+  local executable_xml
+  local out_log_xml
+  local err_log_xml
+
+  mkdir -p "$LAUNCH_AGENT_DIR" "$LOG_DIR"
+  executable_xml="$(printf '%s' "$RELAY_EXECUTABLE" | xml_escape)"
+  out_log_xml="$(printf '%s' "$OUT_LOG" | xml_escape)"
+  err_log_xml="$(printf '%s' "$ERR_LOG" | xml_escape)"
+  STAGED_LAUNCH_AGENT="$(mktemp "$LAUNCH_AGENT_DIR/.$LAUNCH_AGENT_LABEL.plist.XXXXXX")"
+
+  cat >"$STAGED_LAUNCH_AGENT" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>$LAUNCH_AGENT_LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$executable_xml</string>
+    <string>--serve</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>$out_log_xml</string>
+  <key>StandardErrorPath</key>
+  <string>$err_log_xml</string>
+</dict>
+</plist>
+EOF
+
+  chmod 600 "$STAGED_LAUNCH_AGENT"
+  plutil -lint "$STAGED_LAUNCH_AGENT" >/dev/null
+  mv -f "$STAGED_LAUNCH_AGENT" "$LAUNCH_AGENT_PLIST"
+  STAGED_LAUNCH_AGENT=""
+}
+
 start_background_relay() {
   mkdir -p "$LOG_DIR"
-  "$RELAY_EXECUTABLE" --serve-detached >>"$OUT_LOG" 2>>"$ERR_LOG"
+  launchctl bootstrap "$LAUNCH_AGENT_DOMAIN" "$LAUNCH_AGENT_PLIST"
+  launchctl kickstart -k "$LAUNCH_AGENT_TARGET"
 }
 
 wait_for_relay() {
@@ -234,6 +294,7 @@ echo "Developer team verified."
 
 prepare_pairing
 request_accessibility
+install_launch_agent
 start_background_relay
 wait_for_relay
 wait_for_relay_accessibility
@@ -243,6 +304,7 @@ if [[ "$REVIEW_MODE" == "1" ]]; then
   cat <<EOF
 Installed: $APP_PATH
 Background process: CmdCmdRelayApp
+LaunchAgent: $LAUNCH_AGENT_PLIST
 Logs: $ERR_LOG
 
 Next:
@@ -254,6 +316,7 @@ else
   cat <<EOF
 Installed: $APP_PATH
 Background process: CmdCmdRelayApp
+LaunchAgent: $LAUNCH_AGENT_PLIST
 Logs: $ERR_LOG
 
 Next:

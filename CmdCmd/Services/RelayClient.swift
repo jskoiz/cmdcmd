@@ -70,7 +70,12 @@ enum RelayReadiness: Equatable {
 }
 
 struct RelayClient {
+    static let defaultSendRequestTimeoutSeconds: TimeInterval = 15
+    static let defaultStatusRequestTimeoutSeconds: TimeInterval = 5
+
     var settings: RelaySettings
+    var sendRequestTimeoutSeconds = defaultSendRequestTimeoutSeconds
+    var statusRequestTimeoutSeconds = defaultStatusRequestTimeoutSeconds
 
     func checkReadiness(timeoutInterval: TimeInterval = 5) async -> RelayReadiness {
         let trimmedEndpoint = settings.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -108,20 +113,15 @@ struct RelayClient {
 
     func send(_ payload: CaptureUploadPayload) async throws -> RelaySendResult {
         let startedAt = Date()
-        let url = try endpointURL(for: payload.captureId)
+        let request = try uploadRequest(for: payload)
+        guard let url = request.url else {
+            throw RelayClientError.invalidEndpoint
+        }
         let scheme = url.scheme ?? "unknown"
 
         relayClientLogger.info(
             "request building captureId=\(payload.captureId.uuidString, privacy: .public) host=\(url.host() ?? "none", privacy: .public) scheme=\(scheme, privacy: .public)"
         )
-        var request = authorizedRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        request.httpBody = try encoder.encode(payload)
         relayClientLogger.info(
             "request body encoded captureId=\(payload.captureId.uuidString, privacy: .public) bodyBytes=\(request.httpBody?.count ?? 0, privacy: .public) imageBase64Chars=\(payload.imageBase64.count, privacy: .public) recognizedTextChars=\(payload.recognizedText.count, privacy: .public)"
         )
@@ -184,27 +184,80 @@ struct RelayClient {
             throw RelayClientError.invalidResponse("Invalid relay status URL")
         }
 
+        guard timeoutSeconds.isFinite, timeoutSeconds > 0 else {
+            return nil
+        }
+
         let deadline = Date().addingTimeInterval(timeoutSeconds)
         var lastStatus: RelayDeliveryStatus?
-        while Date() < deadline {
+        while true {
             try Task.checkCancellation()
-            try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+            let timeBeforeNextPoll = deadline.timeIntervalSinceNow
+            guard timeBeforeNextPoll > 0 else {
+                return lastStatus
+            }
 
-            let status = try await deliveryStatus(from: statusURL, captureId: sendResult.captureId)
+            let maximumNanosecondInterval = Double(UInt64.max) / 1_000_000_000
+            let remainingNanoseconds = if timeBeforeNextPoll >= maximumNanosecondInterval {
+                UInt64.max
+            } else {
+                UInt64(ceil(timeBeforeNextPoll * 1_000_000_000))
+            }
+            let sleepNanoseconds = min(pollIntervalNanoseconds, remainingNanoseconds)
+            if sleepNanoseconds > 0 {
+                try await Task.sleep(nanoseconds: sleepNanoseconds)
+            }
+
+            let remainingTime = deadline.timeIntervalSinceNow
+            guard remainingTime > 0 else {
+                return lastStatus
+            }
+
+            let status = try await deliveryStatus(
+                from: statusURL,
+                captureId: sendResult.captureId,
+                remainingTime: remainingTime
+            )
             lastStatus = status
             if status.isTerminal {
                 return status
             }
         }
-
-        return lastStatus
     }
 
-    private func deliveryStatus(from url: URL, captureId: UUID) async throws -> RelayDeliveryStatus {
-        let startedAt = Date()
+    func uploadRequest(for payload: CaptureUploadPayload) throws -> URLRequest {
+        var request = authorizedRequest(url: try endpointURL(for: payload.captureId))
+        request.httpMethod = "POST"
+        request.timeoutInterval = max(
+            0.001,
+            sendRequestTimeoutSeconds.isFinite
+                ? sendRequestTimeoutSeconds
+                : Self.defaultSendRequestTimeoutSeconds
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        request.httpBody = try encoder.encode(payload)
+        return request
+    }
+
+    func deliveryStatusRequest(from url: URL, remainingTime: TimeInterval) -> URLRequest {
         var request = authorizedRequest(url: url)
         request.httpMethod = "GET"
+        request.timeoutInterval = max(0.001, min(statusRequestTimeoutSeconds, remainingTime))
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
+    private func deliveryStatus(
+        from url: URL,
+        captureId: UUID,
+        remainingTime: TimeInterval
+    ) async throws -> RelayDeliveryStatus {
+        let startedAt = Date()
+        let request = deliveryStatusRequest(from: url, remainingTime: remainingTime)
 
         relayClientLogger.info("status request started captureId=\(captureId.uuidString, privacy: .public)")
         let data: Data
