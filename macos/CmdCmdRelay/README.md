@@ -13,7 +13,10 @@ curl -fsSL https://www.cmdcmd.click/install.sh | bash
 ```
 
 The installer prepares the private endpoint and token, starts the relay, waits
-for it to become healthy, and prints the pairing QR.
+for it to become healthy, and prints the pairing QR. It installs the per-user
+`app.cmdcmd.relay` LaunchAgent with `RunAtLoad` and `KeepAlive`, so the relay
+starts at login and restarts after an unexpected exit. Standard output and
+errors are written under `~/Library/Logs/`.
 
 ## Develop
 

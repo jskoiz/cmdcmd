@@ -34,6 +34,33 @@ if grep -Eq 'executablePath|"accessibility":"granted"' site/install.sh; then
   exit 1
 fi
 
+if grep -q -- '--serve-detached' site/install.sh; then
+  echo "site/install.sh still uses the one-shot detached relay launcher." >&2
+  exit 1
+fi
+
+# These are literal source fragments; shell expansion here would weaken the guard.
+# shellcheck disable=SC2016
+required_launch_agent_contract=(
+  'LAUNCH_AGENT_LABEL="app.cmdcmd.relay"'
+  '<key>RunAtLoad</key>'
+  '<key>KeepAlive</key>'
+  '<key>StandardOutPath</key>'
+  '<key>StandardErrorPath</key>'
+  '<string>--serve</string>'
+  'mktemp "$LAUNCH_AGENT_DIR/.$LAUNCH_AGENT_LABEL.plist.XXXXXX"'
+  'mv -f "$STAGED_LAUNCH_AGENT" "$LAUNCH_AGENT_PLIST"'
+  'launchctl bootout "$LAUNCH_AGENT_TARGET"'
+  'launchctl bootstrap "$LAUNCH_AGENT_DOMAIN" "$LAUNCH_AGENT_PLIST"'
+  'launchctl kickstart -k "$LAUNCH_AGENT_TARGET"'
+)
+for required_fragment in "${required_launch_agent_contract[@]}"; do
+  if ! grep -Fq "$required_fragment" site/install.sh; then
+    echo "site/install.sh is missing LaunchAgent contract: $required_fragment" >&2
+    exit 1
+  fi
+done
+
 echo "== native relay tests =="
 swift test --package-path macos/CmdCmdRelay
 
