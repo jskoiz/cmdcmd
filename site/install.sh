@@ -16,16 +16,8 @@ ERR_LOG="$LOG_DIR/cmdcmd-relay.err.log"
 RELAY_HEALTH_URL="http://127.0.0.1:8787/healthz"
 RELEASE_BASE_URL="${CMDCMD_RELAY_RELEASE_URL:-https://www.cmdcmd.click/dl}"
 ARCHIVE_NAME="${CMDCMD_RELAY_ARCHIVE_NAME:-CmdCmdRelay-macOS-20260611-2.zip}"
-LOCAL_ARCHIVE_NAME="CmdCmdRelay-macOS.zip"
 EXPECTED_TEAM_IDENTIFIER="H8PYU9TN9X"
 REVIEW_MODE="0"
-SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
-if [[ -n "$SCRIPT_SOURCE" && "$SCRIPT_SOURCE" != bash ]]; then
-  ROOT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
-else
-  ROOT_DIR="$(pwd)"
-fi
-LOCAL_ARCHIVE="$ROOT_DIR/dist/cmdcmd-relay/$LOCAL_ARCHIVE_NAME"
 TMP_DIR="$(mktemp -d)"
 STAGED_LAUNCH_AGENT=""
 
@@ -49,9 +41,11 @@ Options:
                               of sending them to Codex Desktop.
 
 Environment:
-  INSTALL_DIR                 Override destination bundle directory.
-  CMDCMD_RELAY_RELEASE_URL    Override release download base URL.
-  CMDCMD_RELAY_REVIEW_MODE    Set to 1 to enable review mode.
+  INSTALL_DIR                       Override destination bundle directory.
+  CMDCMD_RELAY_RELEASE_URL          Override release download base URL.
+  CMDCMD_RELAY_LOCAL_ARCHIVE        Use an absolute local .zip path with an
+                                    adjacent .sha256 file instead of downloading.
+  CMDCMD_RELAY_REVIEW_MODE          Set to 1 to enable review mode.
 USAGE
 }
 
@@ -81,14 +75,23 @@ done
 download_archive() {
   local archive="$TMP_DIR/$ARCHIVE_NAME"
   local checksum="$TMP_DIR/$ARCHIVE_NAME.sha256"
+  local local_archive="${CMDCMD_RELAY_LOCAL_ARCHIVE:-}"
 
-  if [[ -f "$LOCAL_ARCHIVE" ]]; then
-    cp "$LOCAL_ARCHIVE" "$archive"
-    if [[ ! -f "$LOCAL_ARCHIVE.sha256" ]]; then
-      echo "Missing checksum for local archive: $LOCAL_ARCHIVE.sha256" >&2
+  if [[ -n "$local_archive" ]]; then
+    if [[ "$local_archive" != /* ]]; then
+      echo "CMDCMD_RELAY_LOCAL_ARCHIVE must be an absolute path." >&2
       exit 1
     fi
-    cp "$LOCAL_ARCHIVE.sha256" "$checksum"
+    if [[ ! -f "$local_archive" ]]; then
+      echo "Local archive not found: $local_archive" >&2
+      exit 1
+    fi
+    if [[ ! -f "$local_archive.sha256" ]]; then
+      echo "Missing checksum for local archive: $local_archive.sha256" >&2
+      exit 1
+    fi
+    cp "$local_archive" "$archive"
+    cp "$local_archive.sha256" "$checksum"
   else
     curl -fsSL "$RELEASE_BASE_URL/$ARCHIVE_NAME" -o "$archive"
     curl -fsSL "$RELEASE_BASE_URL/$ARCHIVE_NAME.sha256" -o "$checksum"

@@ -42,7 +42,13 @@ enum ImageProcessor {
         }
 
         let canonicalType = canonicalType(for: sourceType)
-        let requiresTranscoding = canonicalType == nil || data.count > maxRawBytes
+        let exceedsUploadDimensions = max(
+            sourceDimensions.width,
+            sourceDimensions.height
+        ) > maxUploadDimension
+        let requiresTranscoding = canonicalType == nil
+            || data.count > maxRawBytes
+            || exceedsUploadDimensions
 
         let uploadData: Data
         let uploadType: UTType
