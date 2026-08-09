@@ -18,6 +18,24 @@ final class CmdCmdCoreTests: XCTestCase {
         XCTAssertEqual(pairing?.token, "secret")
     }
 
+    func testLatestPhotoSelectionGateRejectsLateOlderCompletion() {
+        var gate = LatestPhotoSelectionGate()
+        let firstSelection = gate.issueToken()
+        let secondSelection = gate.issueToken()
+        var committedSelection: String?
+
+        if gate.authorizes(secondSelection) {
+            committedSelection = "second"
+        }
+        if gate.authorizes(firstSelection) {
+            committedSelection = "first"
+        }
+
+        XCTAssertEqual(committedSelection, "second")
+        XCTAssertFalse(gate.authorizes(firstSelection))
+        XCTAssertTrue(gate.authorizes(secondSelection))
+    }
+
     func testPNGPreparationKeepsMatchingBytesAndFilename() throws {
         let prepared = try ImageProcessor.prepare(
             data: try imageData(type: .png),
@@ -43,6 +61,23 @@ final class CmdCmdCoreTests: XCTestCase {
         XCTAssertTrue(prepared.data.starts(with: [0xFF, 0xD8, 0xFF]))
         XCTAssertEqual(prepared.pixelWidth, 6)
         XCTAssertEqual(prepared.pixelHeight, 4)
+    }
+
+    func testCanonicalPNGBelowByteLimitIsCappedByPixelDimensions() throws {
+        let sourceData = try compressibleAlphaPNG(width: 1_901, height: 320)
+        let sourceImage = try XCTUnwrap(UIImage(data: sourceData)?.cgImage)
+        XCTAssertGreaterThan(max(sourceImage.width, sourceImage.height), 1_800)
+        XCTAssertLessThan(sourceData.count, 7_500_000)
+
+        let prepared = try ImageProcessor.prepare(
+            data: sourceData,
+            filename: "wide-screenshot.jpeg"
+        )
+
+        XCTAssertLessThanOrEqual(max(prepared.pixelWidth, prepared.pixelHeight), 1_800)
+        XCTAssertEqual(prepared.mimeType, "image/png")
+        XCTAssertEqual(prepared.filename, "wide-screenshot.png")
+        XCTAssertTrue(prepared.data.starts(with: [0x89, 0x50, 0x4E, 0x47]))
     }
 
     func testHEICPreparationTranscodesToMatchingCanonicalType() throws {
@@ -422,6 +457,31 @@ final class CmdCmdCoreTests: XCTestCase {
         CGImageDestinationAddImage(destination, image, nil)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
         return encoded as Data
+    }
+
+    private func compressibleAlphaPNG(width: Int, height: Int) throws -> Data {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(
+            size: CGSize(width: CGFloat(width), height: CGFloat(height)),
+            format: format
+        ).image { context in
+            UIColor.clear.setFill()
+            context.fill(
+                CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+            )
+            UIColor.systemBlue.withAlphaComponent(0.5).setFill()
+            context.fill(
+                CGRect(
+                    x: CGFloat(width) / 4,
+                    y: CGFloat(height) / 4,
+                    width: CGFloat(width) / 2,
+                    height: CGFloat(height) / 2
+                )
+            )
+        }
+        return try XCTUnwrap(image.pngData())
     }
 }
 

@@ -9,12 +9,29 @@ private let captureViewLogger = Logger(
     category: "CaptureView"
 )
 
+struct LatestPhotoSelectionGate {
+    typealias Token = UInt64
+
+    private var generation: Token = 0
+
+    mutating func issueToken() -> Token {
+        generation += 1
+        return generation
+    }
+
+    func authorizes(_ token: Token) -> Bool {
+        token == generation
+    }
+}
+
 struct CaptureView: View {
     @Bindable var store: CaptureStore
     var openSettings: () -> Void = {}
     @State private var selectedPhoto: PhotosPickerItem?
+    @State private var photoSelectionGate = LatestPhotoSelectionGate()
     @State private var imageData: Data?
     @State private var imageMetadata: CaptureImageMetadata = .empty
+    @State private var isLoadingPhoto = false
     @State private var isSending = false
     @State private var statusText = ""
     @State private var feedbackPhase: CaptureSendFeedbackPhase?
@@ -49,12 +66,24 @@ struct CaptureView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: selectedPhoto) { _, newValue in
-            guard let newValue else { return }
+            let token = photoSelectionGate.issueToken()
+            imageData = nil
+            imageMetadata = .empty
+            statusText = ""
+            guard let newValue else {
+                isLoadingPhoto = false
+                return
+            }
+            isLoadingPhoto = true
             Task {
                 let selectedImageData = try? await newValue.loadTransferable(type: Data.self)
                 await MainActor.run {
+                    guard photoSelectionGate.authorizes(token) else {
+                        return
+                    }
                     imageData = selectedImageData
-                    imageMetadata = Self.metadata(for: newValue)
+                    imageMetadata = selectedImageData == nil ? .empty : Self.metadata(for: newValue)
+                    isLoadingPhoto = false
                 }
             }
         }
@@ -177,9 +206,10 @@ struct CaptureView: View {
     }
 
     private var sendButton: some View {
-        let showsInlineProgress = isSending && feedbackPhase == nil
+        let isBusy = isSending || isLoadingPhoto
+        let showsInlineProgress = isBusy && feedbackPhase == nil
 
-        return HeroSendButton(isBusy: isSending) {
+        return HeroSendButton(isBusy: isBusy) {
             if store.hasEndpoint {
                 Task { await sendSelectedImage() }
             } else {
@@ -194,7 +224,7 @@ struct CaptureView: View {
                     ProgressView()
                         .tint(.white)
                         .controlSize(.small)
-                } else if !isSending {
+                } else if !isBusy {
                     Image(systemName: "paperplane.fill")
                         .font(.system(size: 18, weight: .semibold))
                 }
@@ -202,14 +232,17 @@ struct CaptureView: View {
                     .font(.headline.weight(.semibold))
             }
         }
-        .disabled(isSending && store.hasEndpoint)
+        .disabled(isBusy && store.hasEndpoint)
     }
 
     private var sendButtonTitle: String {
         if !store.hasEndpoint {
             return "Connect Desktop"
         }
-        return isSending ? "Sending…" : "⌘+⌘"
+        if isSending {
+            return "Sending…"
+        }
+        return isLoadingPhoto ? "Loading…" : "⌘+⌘"
     }
 
     @ViewBuilder

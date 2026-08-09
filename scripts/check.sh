@@ -22,12 +22,8 @@ cd "$repo_root"
 echo "== shell syntax =="
 bash -n scripts/*.sh site/install.sh
 
-package_archive_name="$(sed -n 's/^ARCHIVE_NAME="\([^"]*\)"$/\1/p' scripts/package_macos.sh)"
-local_install_archive_name="$(sed -n 's/^LOCAL_ARCHIVE_NAME="\([^"]*\)"$/\1/p' site/install.sh)"
-if [[ -z "$package_archive_name" || "$package_archive_name" != "$local_install_archive_name" ]]; then
-  echo "Local package/install archive names do not match." >&2
-  exit 1
-fi
+echo "== installer archive source =="
+bash scripts/test_install_archive_source.sh
 
 if grep -Eq 'executablePath|"accessibility":"granted"' site/install.sh; then
   echo "site/install.sh still depends on removed health diagnostics." >&2
